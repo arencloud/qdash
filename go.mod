@@ -1,4 +1,4 @@
-module github.com/egevorky/qdash
+module github.com/arencloud/qdash
 
 go 1.25
 

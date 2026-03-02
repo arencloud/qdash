@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/egevorky/qdash/internal/models"
+	"github.com/arencloud/qdash/internal/models"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"

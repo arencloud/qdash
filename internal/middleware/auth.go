@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/egevorky/qdash/internal/models"
-	"github.com/egevorky/qdash/internal/service"
+	"github.com/arencloud/qdash/internal/models"
+	"github.com/arencloud/qdash/internal/service"
 	"github.com/gin-gonic/gin"
 )
 

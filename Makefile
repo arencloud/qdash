@@ -1,10 +1,10 @@
 APP=qdash
-IMAGE ?= ghcr.io/egevorky/qdash:dev
+IMAGE ?= ghcr.io/arencloud/qdash:dev
 CONTAINER_TOOL ?= podman
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo none)
 BUILD_DATE ?= $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
-LDFLAGS ?= -s -w -X github.com/egevorky/qdash/internal/version.Version=$(VERSION) -X github.com/egevorky/qdash/internal/version.Commit=$(COMMIT) -X github.com/egevorky/qdash/internal/version.BuildDate=$(BUILD_DATE)
+LDFLAGS ?= -s -w -X github.com/arencloud/qdash/internal/version.Version=$(VERSION) -X github.com/arencloud/qdash/internal/version.Commit=$(COMMIT) -X github.com/arencloud/qdash/internal/version.BuildDate=$(BUILD_DATE)
 
 .PHONY: run build test tidy smoke-post swagger-gen openshift-dev-up image-build image-push
 

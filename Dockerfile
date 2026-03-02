@@ -11,7 +11,7 @@ RUN go mod download
 
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath \
-  -ldflags="-s -w -X github.com/egevorky/qdash/internal/version.Version=${VERSION} -X github.com/egevorky/qdash/internal/version.Commit=${COMMIT} -X github.com/egevorky/qdash/internal/version.BuildDate=${BUILD_DATE}" \
+  -ldflags="-s -w -X github.com/arencloud/qdash/internal/version.Version=${VERSION} -X github.com/arencloud/qdash/internal/version.Commit=${COMMIT} -X github.com/arencloud/qdash/internal/version.BuildDate=${BUILD_DATE}" \
   -o /out/qdash ./cmd/server
 
 FROM registry.access.redhat.com/ubi9/ubi-minimal:latest

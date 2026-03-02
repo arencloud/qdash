@@ -3,7 +3,7 @@ package db
 import (
 	"fmt"
 
-	"github.com/egevorky/qdash/internal/models"
+	"github.com/arencloud/qdash/internal/models"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )

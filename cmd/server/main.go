@@ -9,8 +9,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/egevorky/qdash/internal/app"
-	"github.com/egevorky/qdash/internal/version"
+	"github.com/arencloud/qdash/internal/app"
+	"github.com/arencloud/qdash/internal/version"
 )
 
 func main() {

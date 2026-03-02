@@ -20,7 +20,7 @@ spec:
           type: RuntimeDefault
       containers:
       - name: qdash
-        image: ghcr.io/egevorky/qdash:latest
+        image: ghcr.io/arencloud/qdash:latest
         imagePullPolicy: IfNotPresent
         securityContext:
           runAsNonRoot: true

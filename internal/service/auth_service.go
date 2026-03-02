@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/egevorky/qdash/internal/models"
+	"github.com/arencloud/qdash/internal/models"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )

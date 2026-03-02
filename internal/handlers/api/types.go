@@ -1,6 +1,6 @@
 package api
 
-import "github.com/egevorky/qdash/internal/validation"
+import "github.com/arencloud/qdash/internal/validation"
 
 type ErrorResponse struct {
 	Error       string                  `json:"error"`

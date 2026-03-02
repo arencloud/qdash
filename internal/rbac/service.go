@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/egevorky/qdash/internal/models"
+	"github.com/arencloud/qdash/internal/models"
 	"github.com/google/uuid"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"

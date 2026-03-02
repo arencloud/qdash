@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/egevorky/qdash/internal/kube"
+	"github.com/arencloud/qdash/internal/kube"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
