@@ -16,20 +16,13 @@
       <label>Create Namespace</label>
       <input name="name" placeholder="team-a" required>
       <label>Istio Discovery Label</label>
-      <select name="discovery_label" id="istio-discovery" required hx-get="/organizations/{{.Slug}}/resources/namespaces/labels" hx-trigger="load,change" hx-target="#ns-label-options" hx-include="#istio-discovery,#istio-rev">
+      <select name="discovery_label" id="istio-discovery" required hx-get="/organizations/{{.Slug}}/resources/namespaces/labels" hx-trigger="load,change" hx-target="#ns-revision-and-labels" hx-include="#istio-discovery,#istio-rev">
         {{range .DiscoveryLabels}}
         <option value="{{.}}" {{if eq . $.DefaultDiscovery}}selected{{end}}>{{.}}</option>
         {{end}}
       </select>
-      <label>istio.io/rev (revision or tag)</label>
-      <select name="revision_tag" id="istio-rev" required hx-get="/organizations/{{.Slug}}/resources/namespaces/labels" hx-trigger="load,change" hx-target="#ns-label-options" hx-include="#istio-discovery,#istio-rev">
-        {{range .RevisionTags}}
-        <option value="{{.}}" {{if eq . $.DefaultRevision}}selected{{end}}>{{.}}</option>
-        {{end}}
-      </select>
-      <label>Additional Labels</label>
-      <div id="ns-label-options">
-        {{template "namespace_label_options" .}}
+      <div id="ns-revision-and-labels">
+        {{template "namespace_revision_and_labels" .}}
       </div>
       <button type="submit">Create + Claim</button>
     </form>
@@ -41,6 +34,17 @@
     </form>
   </div>
 </section>
+{{end}}
+
+{{define "namespace_revision_and_labels"}}
+<label>istio.io/rev (revision or tag)</label>
+<select name="revision_tag" id="istio-rev" required hx-get="/organizations/{{.Slug}}/resources/namespaces/labels" hx-trigger="change" hx-target="#ns-revision-and-labels" hx-include="#istio-discovery,#istio-rev">
+  {{range .RevisionTags}}
+  <option value="{{.}}" {{if eq . $.DefaultRevision}}selected{{end}}>{{.}}</option>
+  {{end}}
+</select>
+<label>Additional Labels</label>
+{{template "namespace_label_options" .}}
 {{end}}
 
 {{define "namespace_label_options"}}

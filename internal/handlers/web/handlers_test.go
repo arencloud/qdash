@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"html/template"
 	"net/http"
 	"net/http/httptest"
@@ -138,6 +139,17 @@ func TestResourceNamespaceCreateUsesOrganizationDefaults(t *testing.T) {
 	if err := db.Save(&org).Error; err != nil {
 		t.Fatalf("save org settings: %v", err)
 	}
+	if _, err := coreClient.CoreV1().Namespaces().Create(context.Background(), &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "istio-seed-default-canary",
+			Labels: map[string]string{
+				"istio-discovery": "default",
+				"istio.io/rev":    "canary",
+			},
+		},
+	}, metav1.CreateOptions{}); err != nil {
+		t.Fatalf("seed istio namespace labels: %v", err)
+	}
 	setUser(admin)
 
 	form := url.Values{}
@@ -178,6 +190,17 @@ func TestResourceNamespaceCreateRequestOverridesOrganizationDefaults(t *testing.
 	org.Settings = []byte(`{"defaultIstioDiscoveryLabel":"default","defaultIstioRevisionTag":"canary"}`)
 	if err := db.Save(&org).Error; err != nil {
 		t.Fatalf("save org settings: %v", err)
+	}
+	if _, err := coreClient.CoreV1().Namespaces().Create(context.Background(), &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "istio-seed-override",
+			Labels: map[string]string{
+				"istio-discovery": "mesh-a",
+				"istio.io/rev":    "prod-stable",
+			},
+		},
+	}, metav1.CreateOptions{}); err != nil {
+		t.Fatalf("seed istio namespace labels: %v", err)
 	}
 	setUser(admin)
 

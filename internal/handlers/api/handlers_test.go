@@ -19,6 +19,7 @@ import (
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -269,6 +270,17 @@ func TestCreateNamespaceUsesOrganizationDefaults(t *testing.T) {
 	if err := db.Save(&org).Error; err != nil {
 		t.Fatalf("save org settings: %v", err)
 	}
+	if _, err := coreClient.CoreV1().Namespaces().Create(context.Background(), &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "istio-seed-default-canary",
+			Labels: map[string]string{
+				"istio-discovery": "default",
+				"istio.io/rev":    "canary",
+			},
+		},
+	}, metav1.CreateOptions{}); err != nil {
+		t.Fatalf("seed istio namespace labels: %v", err)
+	}
 	setUser(admin)
 
 	body := bytes.NewBufferString(`{"name":"team-defaulted"}`)
@@ -307,6 +319,17 @@ func TestCreateNamespaceRequestOverridesOrganizationDefaults(t *testing.T) {
 	org.Settings = []byte(`{"defaultIstioDiscoveryLabel":"default","defaultIstioRevisionTag":"canary"}`)
 	if err := db.Save(&org).Error; err != nil {
 		t.Fatalf("save org settings: %v", err)
+	}
+	if _, err := coreClient.CoreV1().Namespaces().Create(context.Background(), &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "istio-seed-override",
+			Labels: map[string]string{
+				"istio-discovery": "mesh-a",
+				"istio.io/rev":    "prod-stable",
+			},
+		},
+	}, metav1.CreateOptions{}); err != nil {
+		t.Fatalf("seed istio namespace labels: %v", err)
 	}
 	setUser(admin)
 

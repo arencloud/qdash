@@ -70,6 +70,10 @@ func (s *ResourceService) DiscoverIstioLabels(ctx context.Context) ([]string, []
 	return s.krs.DiscoverIstioLabels(ctx)
 }
 
+func (s *ResourceService) DiscoverIstioInstanceConfigs(ctx context.Context) ([]kube.IstioInstanceConfig, error) {
+	return s.krs.DiscoverIstioInstanceConfigs(ctx)
+}
+
 func kindFromResource(resource string) string {
 	switch resource {
 	case "gateways":

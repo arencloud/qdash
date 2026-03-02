@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -221,22 +222,50 @@ func (h *Handler) listGatewayClasses(c *gin.Context) {
 func (h *Handler) listIstioProfiles(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 20*time.Second)
 	defer cancel()
-	_, revisions, err := h.kubeSvc.DiscoverIstioLabels(ctx)
+	configs, err := h.kubeSvc.DiscoverIstioInstanceConfigs(ctx)
 	if err != nil {
 		c.JSON(http.StatusBadGateway, ErrorResponse{Error: err.Error()})
 		return
 	}
+	discovery := strings.TrimSpace(c.Query("discoveryLabel"))
+	revisionSet := map[string]bool{}
+	if discovery != "" {
+		for _, cfg := range configs {
+			if cfg.DiscoveryLabel != discovery {
+				continue
+			}
+			for _, rev := range cfg.RevisionTags {
+				revisionSet[rev] = true
+			}
+		}
+	} else {
+		for _, cfg := range configs {
+			for _, rev := range cfg.RevisionTags {
+				revisionSet[rev] = true
+			}
+		}
+	}
+	revisions := make([]string, 0, len(revisionSet))
+	for rev := range revisionSet {
+		revisions = append(revisions, rev)
+	}
+	slicesSortStrings(revisions)
 	c.JSON(http.StatusOK, revisions)
 }
 
 func (h *Handler) listIstioInstances(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 20*time.Second)
 	defer cancel()
-	discovery, _, err := h.kubeSvc.DiscoverIstioLabels(ctx)
+	configs, err := h.kubeSvc.DiscoverIstioInstanceConfigs(ctx)
 	if err != nil {
 		c.JSON(http.StatusBadGateway, ErrorResponse{Error: err.Error()})
 		return
 	}
+	discovery := make([]string, 0, len(configs))
+	for _, cfg := range configs {
+		discovery = append(discovery, cfg.DiscoveryLabel)
+	}
+	slicesSortStrings(discovery)
 	c.JSON(http.StatusOK, discovery)
 }
 
@@ -271,6 +300,11 @@ func (h *Handler) createNamespace(c *gin.Context) {
 	}
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 20*time.Second)
 	defer cancel()
+	instanceConfigs, discoverErr := h.kubeSvc.DiscoverIstioInstanceConfigs(ctx)
+	if discoverErr != nil {
+		c.JSON(http.StatusBadGateway, ErrorResponse{Error: discoverErr.Error()})
+		return
+	}
 
 	defaultDiscovery := ""
 	defaultRevision := ""
@@ -291,16 +325,44 @@ func (h *Handler) createNamespace(c *gin.Context) {
 	if req.RevisionTag == "" {
 		req.RevisionTag = defaultRevision
 	}
+	if req.DiscoveryLabel == "" {
+		req.DiscoveryLabel = firstAPIIstioDiscovery(instanceConfigs)
+	}
+	cfg, found := findAPIIstioInstanceConfig(instanceConfigs, req.DiscoveryLabel)
+	if !found {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "invalid discoveryLabel for selected istiod instance"})
+		return
+	}
+	if req.RevisionTag == "" && len(cfg.RevisionTags) > 0 {
+		req.RevisionTag = cfg.RevisionTags[0]
+	}
+	if !apiContainsString(cfg.RevisionTags, req.RevisionTag) {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "invalid revisionTag for selected istiod instance"})
+		return
+	}
 	if req.DiscoveryLabel == "" || req.RevisionTag == "" {
 		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "discoveryLabel and revisionTag are required"})
 		return
+	}
+
+	allowedLabels := map[string]bool{}
+	for _, label := range cfg.AdditionalLabels {
+		allowedLabels[strings.TrimSpace(label)] = true
 	}
 	labels := map[string]string{
 		"istio-discovery": strings.TrimSpace(req.DiscoveryLabel),
 		"istio.io/rev":    strings.TrimSpace(req.RevisionTag),
 	}
 	for _, kv := range req.Labels {
-		parts := strings.SplitN(kv, "=", 2)
+		normalized := strings.TrimSpace(kv)
+		if normalized == "" {
+			continue
+		}
+		if !allowedLabels[normalized] {
+			c.JSON(http.StatusBadRequest, ErrorResponse{Error: "labels must be selected from chosen istiod instance config"})
+			return
+		}
+		parts := strings.SplitN(normalized, "=", 2)
 		if len(parts) != 2 {
 			continue
 		}
@@ -782,4 +844,35 @@ func (h *Handler) ensureNamespaceOwnership(c *gin.Context, orgID uuid.UUID, name
 		return false
 	}
 	return true
+}
+
+func slicesSortStrings(values []string) {
+	sort.Strings(values)
+}
+
+func firstAPIIstioDiscovery(configs []kube.IstioInstanceConfig) string {
+	if len(configs) == 0 {
+		return "default"
+	}
+	return configs[0].DiscoveryLabel
+}
+
+func findAPIIstioInstanceConfig(configs []kube.IstioInstanceConfig, discovery string) (kube.IstioInstanceConfig, bool) {
+	discovery = strings.TrimSpace(discovery)
+	for _, cfg := range configs {
+		if strings.TrimSpace(cfg.DiscoveryLabel) == discovery {
+			return cfg, true
+		}
+	}
+	return kube.IstioInstanceConfig{}, false
+}
+
+func apiContainsString(values []string, candidate string) bool {
+	candidate = strings.TrimSpace(candidate)
+	for _, v := range values {
+		if strings.TrimSpace(v) == candidate {
+			return true
+		}
+	}
+	return false
 }

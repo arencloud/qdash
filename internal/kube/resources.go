@@ -17,6 +17,12 @@ type ResourceService struct {
 	client *Client
 }
 
+type IstioInstanceConfig struct {
+	DiscoveryLabel   string
+	RevisionTags     []string
+	AdditionalLabels []string
+}
+
 func NewResourceService(client *Client) *ResourceService {
 	return &ResourceService{client: client}
 }
@@ -95,21 +101,51 @@ func (s *ResourceService) NamespaceExists(ctx context.Context, name string) (boo
 }
 
 func (s *ResourceService) DiscoverIstioLabels(ctx context.Context) ([]string, []string, error) {
-	discoverySet := map[string]bool{}
-	revSet := map[string]bool{}
-
-	nsList, err := s.client.Core.CoreV1().Namespaces().List(ctx, metav1.ListOptions{})
+	configs, err := s.DiscoverIstioInstanceConfigs(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
+	discovery := make([]string, 0, len(configs))
+	revSet := map[string]bool{}
+	for _, cfg := range configs {
+		discovery = append(discovery, cfg.DiscoveryLabel)
+		for _, rev := range cfg.RevisionTags {
+			revSet[rev] = true
+		}
+	}
+	revisions := make([]string, 0, len(revSet))
+	for rev := range revSet {
+		revisions = append(revisions, rev)
+	}
+	sort.Strings(discovery)
+	sort.Strings(revisions)
+	return discovery, revisions, nil
+}
+
+func (s *ResourceService) DiscoverIstioInstanceConfigs(ctx context.Context) ([]IstioInstanceConfig, error) {
+	discoverySet := map[string]bool{}
+	revSet := map[string]bool{}
+	revisionsByDiscovery := map[string]map[string]bool{}
+	extraLabelsByRevision := map[string]map[string]bool{}
+
+	nsList, err := s.client.Core.CoreV1().Namespaces().List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
 	for _, ns := range nsList.Items {
 		v := strings.TrimSpace(ns.Labels["istio-discovery"])
+		rev := strings.TrimSpace(ns.Labels["istio.io/rev"])
 		if v != "" {
 			discoverySet[v] = true
+			if revisionsByDiscovery[v] == nil {
+				revisionsByDiscovery[v] = map[string]bool{}
+			}
 		}
-		rev := strings.TrimSpace(ns.Labels["istio.io/rev"])
 		if rev != "" {
 			revSet[rev] = true
+			if v != "" {
+				revisionsByDiscovery[v][rev] = true
+			}
 		}
 	}
 
@@ -126,6 +162,40 @@ func (s *ResourceService) DiscoverIstioLabels(ctx context.Context) ([]string, []
 					revSet[tag] = true
 				}
 			}
+			for _, webhook := range mw.Webhooks {
+				if webhook.NamespaceSelector == nil {
+					continue
+				}
+				selectorLabels := selectorLabelOptions(webhook.NamespaceSelector.MatchLabels, webhook.NamespaceSelector.MatchExpressions)
+				if len(selectorLabels) == 0 {
+					continue
+				}
+				selectedRevisions := selectorRevisions(webhook.NamespaceSelector.MatchLabels, webhook.NamespaceSelector.MatchExpressions)
+				if len(selectedRevisions) == 0 {
+					continue
+				}
+				selectedDiscoveries := selectorDiscoveries(webhook.NamespaceSelector.MatchLabels, webhook.NamespaceSelector.MatchExpressions)
+				for _, discovery := range selectedDiscoveries {
+					discoverySet[discovery] = true
+					if revisionsByDiscovery[discovery] == nil {
+						revisionsByDiscovery[discovery] = map[string]bool{}
+					}
+					for _, rev := range selectedRevisions {
+						revisionsByDiscovery[discovery][rev] = true
+					}
+				}
+				for _, rev := range selectedRevisions {
+					if extraLabelsByRevision[rev] == nil {
+						extraLabelsByRevision[rev] = map[string]bool{}
+					}
+					for _, label := range selectorLabels {
+						if strings.HasPrefix(label, "istio.io/rev=") || strings.HasPrefix(label, "istio-discovery=") {
+							continue
+						}
+						extraLabelsByRevision[rev][label] = true
+					}
+				}
+			}
 		}
 	}
 
@@ -136,17 +206,124 @@ func (s *ResourceService) DiscoverIstioLabels(ctx context.Context) ([]string, []
 		revSet["default"] = true
 	}
 
-	discovery := make([]string, 0, len(discoverySet))
-	for v := range discoverySet {
-		discovery = append(discovery, v)
-	}
-	rev := make([]string, 0, len(revSet))
+	allRevisions := make([]string, 0, len(revSet))
 	for v := range revSet {
-		rev = append(rev, v)
+		allRevisions = append(allRevisions, v)
 	}
-	sort.Strings(discovery)
-	sort.Strings(rev)
-	return discovery, rev, nil
+	sort.Strings(allRevisions)
+
+	configs := make([]IstioInstanceConfig, 0, len(discoverySet))
+	for discovery := range discoverySet {
+		revCandidates := revisionsByDiscovery[discovery]
+		revisions := make([]string, 0)
+		if len(revCandidates) == 0 {
+			revisions = append(revisions, allRevisions...)
+		} else {
+			for rev := range revCandidates {
+				revisions = append(revisions, rev)
+			}
+			sort.Strings(revisions)
+		}
+
+		extraSet := map[string]bool{}
+		for _, rev := range revisions {
+			for label := range extraLabelsByRevision[rev] {
+				extraSet[label] = true
+			}
+		}
+		extras := make([]string, 0, len(extraSet))
+		for label := range extraSet {
+			extras = append(extras, label)
+		}
+		sort.Strings(extras)
+
+		configs = append(configs, IstioInstanceConfig{
+			DiscoveryLabel:   discovery,
+			RevisionTags:     revisions,
+			AdditionalLabels: extras,
+		})
+	}
+	sort.Slice(configs, func(i, j int) bool {
+		return configs[i].DiscoveryLabel < configs[j].DiscoveryLabel
+	})
+	return configs, nil
+}
+
+func selectorLabelOptions(matchLabels map[string]string, expressions []metav1.LabelSelectorRequirement) []string {
+	set := map[string]bool{}
+	for k, v := range matchLabels {
+		k = strings.TrimSpace(k)
+		v = strings.TrimSpace(v)
+		if k == "" || v == "" {
+			continue
+		}
+		set[k+"="+v] = true
+	}
+	for _, expr := range expressions {
+		if expr.Operator != metav1.LabelSelectorOpIn || len(expr.Values) != 1 {
+			continue
+		}
+		key := strings.TrimSpace(expr.Key)
+		val := strings.TrimSpace(expr.Values[0])
+		if key == "" || val == "" {
+			continue
+		}
+		set[key+"="+val] = true
+	}
+	out := make([]string, 0, len(set))
+	for label := range set {
+		out = append(out, label)
+	}
+	sort.Strings(out)
+	return out
+}
+
+func selectorRevisions(matchLabels map[string]string, expressions []metav1.LabelSelectorRequirement) []string {
+	set := map[string]bool{}
+	if rev := strings.TrimSpace(matchLabels["istio.io/rev"]); rev != "" {
+		set[rev] = true
+	}
+	for _, expr := range expressions {
+		if strings.TrimSpace(expr.Key) != "istio.io/rev" || expr.Operator != metav1.LabelSelectorOpIn {
+			continue
+		}
+		for _, v := range expr.Values {
+			rev := strings.TrimSpace(v)
+			if rev != "" {
+				set[rev] = true
+			}
+		}
+	}
+	out := make([]string, 0, len(set))
+	for rev := range set {
+		out = append(out, rev)
+	}
+	sort.Strings(out)
+	return out
+}
+
+func selectorDiscoveries(matchLabels map[string]string, expressions []metav1.LabelSelectorRequirement) []string {
+	set := map[string]bool{}
+	if discovery := strings.TrimSpace(matchLabels["istio-discovery"]); discovery != "" {
+		set[discovery] = true
+	}
+	for _, expr := range expressions {
+		if strings.TrimSpace(expr.Key) != "istio-discovery" || expr.Operator != metav1.LabelSelectorOpIn {
+			continue
+		}
+		for _, v := range expr.Values {
+			discovery := strings.TrimSpace(v)
+			if discovery != "" {
+				set[discovery] = true
+			}
+		}
+	}
+	out := make([]string, 0, len(set))
+	for discovery := range set {
+		out = append(out, discovery)
+	}
+	sort.Strings(out)
+	return out
 }
 
 func NamespaceIstioInstances() map[string]map[string]string {
