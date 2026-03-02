@@ -325,6 +325,7 @@ func (h *Handler) createNamespace(c *gin.Context) {
 	if req.RevisionTag == "" {
 		req.RevisionTag = defaultRevision
 	}
+	req.DiscoveryLabel = normalizeAPIDiscoverySelection(req.DiscoveryLabel)
 	if req.DiscoveryLabel == "" {
 		req.DiscoveryLabel = firstAPIIstioDiscovery(instanceConfigs)
 	}
@@ -344,14 +345,19 @@ func (h *Handler) createNamespace(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "discoveryLabel and revisionTag are required"})
 		return
 	}
+	discoveryKey, discoveryValue, discoveryErr := splitAPILabelKV(req.DiscoveryLabel)
+	if discoveryErr != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "invalid discoveryLabel format, expected key=value"})
+		return
+	}
 
 	allowedLabels := map[string]bool{}
 	for _, label := range cfg.AdditionalLabels {
 		allowedLabels[strings.TrimSpace(label)] = true
 	}
 	labels := map[string]string{
-		"istio-discovery": strings.TrimSpace(req.DiscoveryLabel),
-		"istio.io/rev":    strings.TrimSpace(req.RevisionTag),
+		discoveryKey:   discoveryValue,
+		"istio.io/rev": strings.TrimSpace(req.RevisionTag),
 	}
 	for _, kv := range req.Labels {
 		normalized := strings.TrimSpace(kv)
@@ -875,4 +881,28 @@ func apiContainsString(values []string, candidate string) bool {
 		}
 	}
 	return false
+}
+
+func normalizeAPIDiscoverySelection(v string) string {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return v
+	}
+	if strings.Contains(v, "=") {
+		return v
+	}
+	return "istio-discovery=" + v
+}
+
+func splitAPILabelKV(v string) (string, string, error) {
+	parts := strings.SplitN(strings.TrimSpace(v), "=", 2)
+	if len(parts) != 2 {
+		return "", "", errors.New("invalid label format")
+	}
+	key := strings.TrimSpace(parts[0])
+	value := strings.TrimSpace(parts[1])
+	if key == "" || value == "" {
+		return "", "", errors.New("invalid label format")
+	}
+	return key, value, nil
 }

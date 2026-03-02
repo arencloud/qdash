@@ -15,7 +15,7 @@
     <form hx-post="/organizations/{{.Slug}}/resources/namespaces/create" hx-target="#namespace-feedback" hx-swap="innerHTML">
       <label>Create Namespace</label>
       <input name="name" placeholder="team-a" required>
-      <label>Istio Discovery Label</label>
+      <label>Istio Discovery Label (key=value)</label>
       <select name="discovery_label" id="istio-discovery" required hx-get="/organizations/{{.Slug}}/resources/namespaces/labels" hx-trigger="load,change" hx-target="#ns-revision-and-labels" hx-include="#istio-discovery,#istio-rev">
         {{range .DiscoveryLabels}}
         <option value="{{.}}" {{if eq . $.DefaultDiscovery}}selected{{end}}>{{.}}</option>

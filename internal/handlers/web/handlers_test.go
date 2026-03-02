@@ -233,6 +233,55 @@ func TestResourceNamespaceCreateRequestOverridesOrganizationDefaults(t *testing.
 	}
 }
 
+func TestResourceNamespaceCreateSupportsDiscoveryLabelKeyValue(t *testing.T) {
+	r, rbacSvc, db, coreClient, setUser := setupWebHandlerTest(t)
+
+	admin := models.User{Email: "admin-create-kv@test.local", DisplayName: "admin", Source: "local"}
+	if err := db.Create(&admin).Error; err != nil {
+		t.Fatalf("create admin: %v", err)
+	}
+	org, err := rbacSvc.CreateOrganizationWithAdmin(admin, "Org Create KV")
+	if err != nil {
+		t.Fatalf("create org: %v", err)
+	}
+	if _, err := coreClient.CoreV1().Namespaces().Create(context.Background(), &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "istio-seed-kv",
+			Labels: map[string]string{
+				"local-discovery": "enabled",
+				"istio.io/rev":    "local-v1-27-5",
+			},
+		},
+	}, metav1.CreateOptions{}); err != nil {
+		t.Fatalf("seed istio namespace labels: %v", err)
+	}
+	setUser(admin)
+
+	form := url.Values{}
+	form.Set("name", "team-create-kv")
+	form.Set("discovery_label", "local-discovery=enabled")
+	form.Set("revision_tag", "local-v1-27-5")
+	req := httptest.NewRequest(http.MethodPost, "/organizations/"+org.Slug+"/resources/namespaces/create", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	res := httptest.NewRecorder()
+	r.ServeHTTP(res, req)
+
+	if res.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", res.Code, res.Body.String())
+	}
+	ns, err := coreClient.CoreV1().Namespaces().Get(req.Context(), "team-create-kv", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("load created namespace: %v", err)
+	}
+	if ns.Labels["local-discovery"] != "enabled" {
+		t.Fatalf("expected local-discovery=enabled, got labels=%+v", ns.Labels)
+	}
+	if ns.Labels["istio.io/rev"] != "local-v1-27-5" {
+		t.Fatalf("expected istio.io/rev=local-v1-27-5, got labels=%+v", ns.Labels)
+	}
+}
+
 func TestResourceNamespaceAdoptRequiresAdmin(t *testing.T) {
 	r, rbacSvc, db, _, setUser := setupWebHandlerTest(t)
 

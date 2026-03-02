@@ -921,6 +921,7 @@ func (h *Handler) resourceNamespaceCreate(c *gin.Context) {
 	if discoveryLabel == "" {
 		discoveryLabel = firstDiscovery(instanceConfigs)
 	}
+	discoveryLabel = normalizeDiscoverySelection(discoveryLabel)
 	cfg := findIstioInstanceConfig(instanceConfigs, discoveryLabel)
 	if cfg.DiscoveryLabel == "" {
 		c.HTML(http.StatusBadRequest, "flash", gin.H{"Message": "invalid istio discovery label for selected istiod instance"})
@@ -937,14 +938,19 @@ func (h *Handler) resourceNamespaceCreate(c *gin.Context) {
 		c.HTML(http.StatusBadRequest, "flash", gin.H{"Message": "discovery label and revision tag are required"})
 		return
 	}
+	discoveryKey, discoveryValue, discoveryErr := splitLabelKV(discoveryLabel)
+	if discoveryErr != nil {
+		c.HTML(http.StatusBadRequest, "flash", gin.H{"Message": "invalid discovery label format, expected key=value"})
+		return
+	}
 
 	allowedLabels := map[string]bool{}
 	for _, opt := range cfg.AdditionalLabels {
 		allowedLabels[strings.TrimSpace(opt)] = true
 	}
 	labels := map[string]string{
-		"istio-discovery": discoveryLabel,
-		"istio.io/rev":    revisionTag,
+		discoveryKey:   discoveryValue,
+		"istio.io/rev": revisionTag,
 	}
 	for _, kv := range c.PostFormArray("labels") {
 		normalized := strings.TrimSpace(kv)
@@ -1327,6 +1333,30 @@ func findIstioInstanceConfig(configs []kube.IstioInstanceConfig, discovery strin
 		}
 	}
 	return kube.IstioInstanceConfig{}
+}
+
+func normalizeDiscoverySelection(v string) string {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return v
+	}
+	if strings.Contains(v, "=") {
+		return v
+	}
+	return "istio-discovery=" + v
+}
+
+func splitLabelKV(v string) (string, string, error) {
+	parts := strings.SplitN(strings.TrimSpace(v), "=", 2)
+	if len(parts) != 2 {
+		return "", "", fmt.Errorf("invalid label format")
+	}
+	key := strings.TrimSpace(parts[0])
+	value := strings.TrimSpace(parts[1])
+	if key == "" || value == "" {
+		return "", "", fmt.Errorf("invalid label format")
+	}
+	return key, value, nil
 }
 
 func namespaceLabelOptionsForInstance(instance string) []string {

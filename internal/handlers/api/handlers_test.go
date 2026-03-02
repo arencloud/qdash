@@ -358,6 +358,51 @@ func TestCreateNamespaceRequestOverridesOrganizationDefaults(t *testing.T) {
 	}
 }
 
+func TestCreateNamespaceSupportsDiscoveryLabelKeyValue(t *testing.T) {
+	r, db, rbacSvc, setUser, _, coreClient := setupAPIHandlerTestWithClients(t)
+
+	admin := models.User{Email: "admin-kv-ns@test.local", DisplayName: "admin", Source: "local"}
+	if err := db.Create(&admin).Error; err != nil {
+		t.Fatalf("create admin: %v", err)
+	}
+	org, err := rbacSvc.CreateOrganizationWithAdmin(admin, "Org KV Namespace")
+	if err != nil {
+		t.Fatalf("create org: %v", err)
+	}
+	if _, err := coreClient.CoreV1().Namespaces().Create(context.Background(), &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "istio-seed-kv",
+			Labels: map[string]string{
+				"local-discovery": "enabled",
+				"istio.io/rev":    "local-v1-27-5",
+			},
+		},
+	}, metav1.CreateOptions{}); err != nil {
+		t.Fatalf("seed istio namespace labels: %v", err)
+	}
+	setUser(admin)
+
+	body := bytes.NewBufferString(`{"name":"team-kv","discoveryLabel":"local-discovery=enabled","revisionTag":"local-v1-27-5"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/"+org.Slug+"/namespaces", body)
+	req.Header.Set("Content-Type", "application/json")
+	res := httptest.NewRecorder()
+	r.ServeHTTP(res, req)
+
+	if res.Code != http.StatusCreated {
+		t.Fatalf("expected 201 creating namespace, got %d: %s", res.Code, res.Body.String())
+	}
+	ns, err := coreClient.CoreV1().Namespaces().Get(context.Background(), "team-kv", metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("get namespace: %v", err)
+	}
+	if ns.Labels["local-discovery"] != "enabled" {
+		t.Fatalf("expected local-discovery=enabled, got labels=%+v", ns.Labels)
+	}
+	if ns.Labels["istio.io/rev"] != "local-v1-27-5" {
+		t.Fatalf("expected istio.io/rev=local-v1-27-5, got labels=%+v", ns.Labels)
+	}
+}
+
 func TestAdoptNamespaceRequiresAdmin(t *testing.T) {
 	r, db, rbacSvc, setUser := setupAPIHandlerTest(t)
 
