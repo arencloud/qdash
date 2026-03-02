@@ -1,0 +1,27 @@
+{{define "login"}}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Login - QDash</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+  <main class="shell">
+    <section class="hero compact">
+      <h1>Sign In</h1>
+      <p>Use email login for local development access.</p>
+    </section>
+    <section class="card" style="max-width:420px">
+      {{if .Error}}<div class="flash">{{.Error}}</div>{{end}}
+      {{if .OIDCEnabled}}
+      <a class="btn" href="/auth/oidc/start">Sign in with OIDC</a>
+      {{else}}
+      <p>OIDC is not configured. Set `OIDC_*` env vars and restart.</p>
+      {{end}}
+    </section>
+  </main>
+</body>
+</html>
+{{end}}

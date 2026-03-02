@@ -7,6 +7,8 @@
 *.dll
 *.so
 *.dylib
+/bin/
+/server
 
 # Test binary, built with `go test -c`
 *.test
@@ -30,3 +32,6 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+
+# Generated OpenAPI artifacts
+docs/generated/

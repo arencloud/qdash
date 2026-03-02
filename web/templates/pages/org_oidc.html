@@ -1,0 +1,98 @@
+{{define "org_oidc"}}
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>OIDC</title><link rel="stylesheet" href="/static/css/app.css"></head>
+<body><main class="shell">
+  <section class="hero compact"><h1>OIDC Mapping</h1><p>Organization: {{.Slug}}</p></section>
+  <section id="oidc-feedback"></section>
+
+  <section class="card">
+    <h3>Provider Configuration</h3>
+    <form hx-post="/organizations/{{.Slug}}/oidc/config" hx-target="#oidc-feedback" hx-swap="innerHTML">
+      <label>Issuer URL</label>
+      <input name="issuer_url" value="{{.Config.IssuerURL}}" placeholder="https://sso.example.com/realms/platform" required>
+      <div class="grid two">
+        <div>
+          <label>Client ID</label>
+          <input name="client_id" value="{{.Config.ClientID}}" required>
+        </div>
+        <div>
+          <label>Client Secret</label>
+          <input type="password" name="client_secret" value="{{.Config.ClientSecret}}" required>
+        </div>
+      </div>
+      <div class="grid two">
+        <div>
+          <label>Group Claim</label>
+          <input name="group_claim" value="{{if .Config.GroupClaim}}{{.Config.GroupClaim}}{{else}}groups{{end}}">
+        </div>
+        <div>
+          <label>Username Claim</label>
+          <input name="username_claim" value="{{if .Config.UsernameClaim}}{{.Config.UsernameClaim}}{{else}}email{{end}}">
+        </div>
+      </div>
+      <label><input type="checkbox" name="enabled" {{if .Config.Enabled}}checked{{end}}> Enable OIDC mapping for this organization</label>
+      <button type="submit">Save OIDC Config</button>
+    </form>
+  </section>
+
+  <section class="card">
+    <h3>Create OIDC Mapping</h3>
+    <form hx-post="/organizations/{{.Slug}}/oidc/mappings" hx-target="#oidc-feedback" hx-swap="innerHTML">
+      <div class="grid two">
+        <div>
+          <label>Subject Type</label>
+          <select name="subject_type" required>
+            <option value="group">group claim</option>
+            <option value="user">user claim</option>
+            <option value="role">role claim</option>
+          </select>
+        </div>
+        <div>
+          <label>External Value</label>
+          <input name="external_value" placeholder="platform-admins / alice@example.com / app-admin" required>
+        </div>
+      </div>
+      <div class="grid two">
+        <div>
+          <label>Mapped Role</label>
+          <select name="mapped_role" required>
+            <option value="">select role</option>
+            <option value="admin">admin</option>
+            <option value="editor">editor</option>
+            <option value="viewer">viewer</option>
+          </select>
+        </div>
+        <div>
+          <label>Custom Permission (optional)</label>
+          <input name="custom_permission" placeholder="security.write">
+        </div>
+      </div>
+      <button type="submit">Add Mapping</button>
+    </form>
+  </section>
+
+  <section class="card">
+    <h3>Current Mappings</h3>
+    <table class="audit-table">
+      <thead><tr><th>Type</th><th>External Value</th><th>Role</th><th>Custom Permission</th><th>Action</th></tr></thead>
+      <tbody>
+      {{range .Mappings}}
+      <tr>
+        <td>{{if .SubjectType}}{{.SubjectType}}{{else}}group{{end}}</td>
+        <td>{{if .ExternalValue}}{{.ExternalValue}}{{else}}{{.ExternalGroup}}{{end}}</td>
+        <td>{{.MappedRole}}</td>
+        <td>{{if .CustomPermission}}{{.CustomPermission}}{{else}}-{{end}}</td>
+        <td>
+          <form hx-post="/organizations/{{$.Slug}}/oidc/mappings/{{.ID}}/delete" hx-target="#oidc-feedback" hx-swap="innerHTML">
+            <button type="submit">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {{else}}
+      <tr><td colspan="5">No mappings configured.</td></tr>
+      {{end}}
+      </tbody>
+    </table>
+  </section>
+</main></body></html>
+{{end}}

@@ -1,0 +1,19 @@
+{{define "org_list"}}
+<div class="card-stack" id="org-list">
+  {{range .Organizations}}
+    <div class="card">
+      <h3>{{.Name}}</h3>
+      <p>slug: {{.Slug}}</p>
+      <div class="actions">
+        <a href="/organizations/{{.Slug}}/settings">Settings</a>
+        <a href="/organizations/{{.Slug}}/rbac">RBAC</a>
+        <a href="/organizations/{{.Slug}}/oidc">OIDC</a>
+        <a href="/organizations/{{.Slug}}/resources">Resources</a>
+        <a href="/organizations/{{.Slug}}/audit">Audit</a>
+      </div>
+    </div>
+  {{else}}
+    <div class="card empty">No organizations yet.</div>
+  {{end}}
+</div>
+{{end}}

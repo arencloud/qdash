@@ -1,0 +1,17 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: qdash-cluster-role
+rules:
+- apiGroups: [""]
+  resources: ["namespaces"]
+  verbs: ["get", "list", "watch", "create"]
+- apiGroups: ["gateway.networking.k8s.io"]
+  resources: ["gatewayclasses"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["gateway.networking.k8s.io"]
+  resources: ["gateways", "httproutes"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+- apiGroups: ["kuadrant.io"]
+  resources: ["authpolicies", "ratelimitpolicies"]
+  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]

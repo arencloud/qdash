@@ -1,0 +1,43 @@
+{{define "org_settings"}}
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Org Settings</title><link rel="stylesheet" href="/static/css/app.css"></head>
+<body><main class="shell">
+  <section class="hero compact"><h1>Organization Settings</h1><p>Organization: {{.Slug}}</p></section>
+
+  <section id="settings-feedback"></section>
+  <section class="card">
+    <h3>General And Defaults</h3>
+    <form hx-post="/organizations/{{.Slug}}/settings/update" hx-target="#settings-feedback" hx-swap="innerHTML">
+      <label>Name</label>
+      <input name="name" value="{{.OrgName}}" required>
+      <label>Description</label>
+      <textarea name="description" rows="4" placeholder="Describe the organization">{{.Description}}</textarea>
+      <div class="grid three">
+        <div>
+          <label>Default Namespace Profile</label>
+          <input name="default_namespace_profile" value="{{index .Settings "defaultNamespaceProfile"}}" placeholder="default">
+        </div>
+        <div>
+          <label>Default Istio Instance</label>
+          <input name="default_namespace_instance" value="{{index .Settings "defaultNamespaceInstance"}}" placeholder="default">
+        </div>
+        <div>
+          <label>Contact Email</label>
+          <input name="contact_email" value="{{index .Settings "contactEmail"}}" placeholder="platform@example.com">
+        </div>
+        <div>
+          <label>Environment</label>
+          <input name="environment" value="{{index .Settings "environment"}}" placeholder="prod">
+        </div>
+      </div>
+      <button type="submit">Save Settings</button>
+    </form>
+  </section>
+
+  <section class="card-stack">
+    <div class="card"><h3>OIDC Connection</h3><p>Configure issuer, client, claim mappings.</p><a href="/organizations/{{.Slug}}/oidc">Open OIDC</a></div>
+    <div class="card"><h3>RBAC</h3><p>Manage users, groups and custom permissions.</p><a href="/organizations/{{.Slug}}/rbac">Open RBAC</a></div>
+    <div class="card"><h3>Audit Log</h3><p>Review mapping and access events.</p><a href="/organizations/{{.Slug}}/audit">Open Audit</a></div>
+  </section>
+</main></body></html>
+{{end}}

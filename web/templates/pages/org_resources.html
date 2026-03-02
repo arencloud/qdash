@@ -1,0 +1,47 @@
+{{define "org_resources"}}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Org Resources</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+  <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+</head>
+<body>
+<main class="shell">
+  <section class="hero compact">
+    <h1>Organization Resource Center</h1>
+    <p>Organization: {{.Slug}}</p>
+  </section>
+
+  <section id="namespace-panel" hx-get="/organizations/{{.Slug}}/resources/namespaces/panel" hx-trigger="load,namespaceChanged from:body" hx-target="this" hx-swap="innerHTML">
+    Loading namespaces...
+  </section>
+  {{if .GatewayClassError}}
+  <section class="card"><p>Gateway classes could not be loaded from cluster: {{.GatewayClassError}}</p></section>
+  {{end}}
+
+  {{range .Kinds}}
+  <section class="card">
+    <h3>{{.Title}}</h3>
+    <section id="resource-feedback-{{.Param}}"></section>
+    <form class="resource-form" hx-post="/organizations/{{$.Slug}}/resources/{{.Param}}/apply" hx-target="#resource-feedback-{{.Param}}" hx-swap="innerHTML" hx-include="#ns-select,this">
+      <input id="name-{{.Param}}" name="name" placeholder="{{.Title}} name" required>
+      {{template "resource_form" .}}
+      <button type="submit">Apply {{.Title}}</button>
+    </form>
+
+    <div class="actions">
+      <button class="btn" hx-get="/organizations/{{$.Slug}}/resources/{{.Param}}/list" hx-include="#ns-select" hx-target="#list-{{.Param}}" hx-swap="innerHTML">Refresh List</button>
+    </div>
+
+    <div id="list-{{.Param}}" hx-get="/organizations/{{$.Slug}}/resources/{{.Param}}/list" hx-trigger="load,resourceChanged from:body,change from:#ns-select" hx-include="#ns-select" hx-target="this" hx-swap="innerHTML">
+      Loading {{.Title}}...
+    </div>
+  </section>
+  {{end}}
+</main>
+</body>
+</html>
+{{end}}

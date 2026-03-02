@@ -1,0 +1,1629 @@
+package web
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net/http"
+	"sort"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/egevorky/qdash/internal/kube"
+	"github.com/egevorky/qdash/internal/middleware"
+	"github.com/egevorky/qdash/internal/models"
+	"github.com/egevorky/qdash/internal/rbac"
+	"github.com/egevorky/qdash/internal/service"
+	"github.com/egevorky/qdash/internal/validation"
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	"gorm.io/gorm"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+)
+
+type Handler struct {
+	rbac    *rbac.Service
+	authSvc *service.AuthService
+	oidcSvc *service.OIDCService
+	kubeSvc *service.ResourceService
+}
+
+type auditEventRow struct {
+	CreatedAt string
+	EventType string
+	Status    string
+	Resource  string
+	Message   string
+	Actor     string
+	Details   string
+}
+
+type membershipRow struct {
+	UserID      string
+	Email       string
+	DisplayName string
+	Role        string
+	Permission  string
+}
+
+type groupRow struct {
+	ID          string
+	Name        string
+	Members     []membershipRow
+	Permissions []string
+}
+
+type resourceKind struct {
+	Param           string
+	Title           string
+	ReadPermission  string
+	WritePermission string
+	GVR             schema.GroupVersionResource
+	FormFields      []string
+	GatewayClasses  []string
+}
+
+type resourceRow struct {
+	Name      string
+	CreatedAt string
+	Spec      string
+}
+
+type namespaceOption struct {
+	Name   string
+	Exists bool
+}
+
+type validationFieldError struct {
+	Field   string
+	Message string
+}
+
+type validationErrors []validationFieldError
+
+func (v *validationErrors) add(field, message string) {
+	*v = append(*v, validationFieldError{Field: field, Message: message})
+}
+
+func (v validationErrors) any() bool {
+	return len(v) > 0
+}
+
+func fromValidationFieldErrors(errs []validation.FieldError) validationErrors {
+	out := make(validationErrors, 0, len(errs))
+	for _, err := range errs {
+		out = append(out, validationFieldError{Field: err.Field, Message: err.Message})
+	}
+	return out
+}
+
+func NewHandler(rbacSvc *rbac.Service, authSvc *service.AuthService, oidcSvc *service.OIDCService, kubeSvc *service.ResourceService) *Handler {
+	return &Handler{rbac: rbacSvc, authSvc: authSvc, oidcSvc: oidcSvc, kubeSvc: kubeSvc}
+}
+
+func (h *Handler) RegisterPublic(r *gin.Engine) {
+	r.GET("/login", h.loginPage)
+	r.GET("/auth/oidc/start", h.oidcStart)
+	r.GET("/auth/oidc/callback", h.oidcCallback)
+}
+
+func (h *Handler) RegisterProtected(rg *gin.RouterGroup) {
+	rg.GET("/", h.home)
+	rg.POST("/logout", h.logout)
+	rg.GET("/organizations/new", h.newOrganizationForm)
+	rg.POST("/organizations", h.createOrganization)
+	rg.GET("/organizations/:slug/settings", h.orgSettings)
+	rg.POST("/organizations/:slug/settings/update", h.orgSettingsUpdate)
+	rg.GET("/organizations/:slug/rbac", h.orgRBAC)
+	rg.GET("/organizations/:slug/rbac/panel", h.orgRBACPanel)
+	rg.POST("/organizations/:slug/rbac/users/upsert", h.rbacUpsertMembership)
+	rg.POST("/organizations/:slug/rbac/permissions", h.rbacCreatePermission)
+	rg.POST("/organizations/:slug/rbac/groups", h.rbacCreateGroup)
+	rg.POST("/organizations/:slug/rbac/groups/:groupID/delete", h.rbacDeleteGroup)
+	rg.POST("/organizations/:slug/rbac/groups/:groupID/users", h.rbacAddGroupMember)
+	rg.POST("/organizations/:slug/rbac/groups/:groupID/users/:userID/delete", h.rbacRemoveGroupMember)
+	rg.POST("/organizations/:slug/rbac/groups/:groupID/permissions", h.rbacAddGroupPermission)
+	rg.POST("/organizations/:slug/rbac/groups/:groupID/permissions/delete", h.rbacRemoveGroupPermission)
+	rg.GET("/organizations/:slug/oidc", h.orgOIDC)
+	rg.POST("/organizations/:slug/oidc/config", h.oidcSaveConfig)
+	rg.POST("/organizations/:slug/oidc/mappings", h.oidcCreateMapping)
+	rg.POST("/organizations/:slug/oidc/mappings/:mappingID/delete", h.oidcDeleteMapping)
+	rg.GET("/organizations/:slug/audit", h.orgAudit)
+	rg.GET("/organizations/:slug/resources", h.orgResources)
+	rg.GET("/organizations/:slug/resources/namespaces/panel", h.resourceNamespacesPanel)
+	rg.GET("/organizations/:slug/resources/namespaces/labels", h.resourceNamespaceLabelOptions)
+	rg.POST("/organizations/:slug/resources/namespaces/create", h.resourceNamespaceCreate)
+	rg.POST("/organizations/:slug/resources/namespaces/adopt", h.resourceNamespaceAdopt)
+	rg.GET("/organizations/:slug/resources/:kind/list", h.resourceListPartial)
+	rg.GET("/organizations/:slug/resources/:kind/edit", h.resourceEdit)
+	rg.POST("/organizations/:slug/resources/:kind/apply", h.resourceApply)
+	rg.POST("/organizations/:slug/resources/:kind/delete", h.resourceDelete)
+	rg.GET("/resources", h.resources)
+}
+
+func (h *Handler) loginPage(c *gin.Context) {
+	c.HTML(http.StatusOK, "login", gin.H{
+		"OIDCEnabled": h.oidcSvc.Enabled(),
+		"Error":       c.Query("error"),
+	})
+}
+
+func (h *Handler) oidcStart(c *gin.Context) {
+	if !h.oidcSvc.Enabled() {
+		c.Redirect(http.StatusFound, "/login?error=oidc_not_configured")
+		return
+	}
+	url, err := h.oidcSvc.AuthCodeURL()
+	if err != nil {
+		c.Redirect(http.StatusFound, "/login?error=oidc_start_failed")
+		return
+	}
+	c.Redirect(http.StatusFound, url)
+}
+
+func (h *Handler) oidcCallback(c *gin.Context) {
+	if c.Query("error") != "" {
+		c.Redirect(http.StatusFound, "/login?error=oidc_provider_error")
+		return
+	}
+	identity, err := h.oidcSvc.ExchangeCallback(c.Request.Context(), c.Query("state"), c.Query("code"))
+	if err != nil {
+		c.Redirect(http.StatusFound, "/login?error=oidc_callback_failed")
+		return
+	}
+	user, err := h.authSvc.EnsureOIDCUser(identity.Email, identity.DisplayName)
+	if err != nil {
+		c.Redirect(http.StatusFound, "/login?error=user_sync_failed")
+		return
+	}
+	if err := h.rbac.ApplyOIDCMappings(user.ID, identity.RawClaims); err != nil {
+		c.Redirect(http.StatusFound, "/login?error=oidc_mapping_failed")
+		return
+	}
+	token, err := h.authSvc.CreateSession(user.ID)
+	if err != nil {
+		c.Redirect(http.StatusFound, "/login?error=session_failed")
+		return
+	}
+	c.SetCookie(middleware.SessionCookieName, token, int(service.SessionTTL.Seconds()), "/", "", false, true)
+	c.Redirect(http.StatusFound, "/")
+}
+
+func (h *Handler) logout(c *gin.Context) {
+	token, _ := c.Cookie(middleware.SessionCookieName)
+	_ = h.authSvc.Logout(token)
+	c.SetCookie(middleware.SessionCookieName, "", -1, "/", "", false, true)
+	c.Redirect(http.StatusFound, "/login")
+}
+
+func (h *Handler) home(c *gin.Context) {
+	user, _ := middleware.UserFromContext(c)
+	orgs, _ := h.rbac.ListOrganizationsForUser(user.ID)
+	c.HTML(http.StatusOK, "home", gin.H{"User": user, "Organizations": orgs})
+}
+
+func (h *Handler) newOrganizationForm(c *gin.Context) {
+	c.HTML(http.StatusOK, "org_form", gin.H{})
+}
+
+func (h *Handler) createOrganization(c *gin.Context) {
+	user, _ := middleware.UserFromContext(c)
+	name := c.PostForm("name")
+	if name == "" {
+		c.HTML(http.StatusBadRequest, "flash", gin.H{"Message": "organization name is required"})
+		return
+	}
+	_, err := h.rbac.CreateOrganizationWithAdmin(user, name)
+	if err != nil {
+		c.HTML(http.StatusBadRequest, "flash", gin.H{"Message": err.Error()})
+		return
+	}
+	orgs, _ := h.rbac.ListOrganizationsForUser(user.ID)
+	c.HTML(http.StatusOK, "org_list", gin.H{"Organizations": orgs})
+}
+
+func (h *Handler) orgSettings(c *gin.Context) {
+	user, _ := middleware.UserFromContext(c)
+	org, err := h.rbac.Authorize(user.ID, c.Param("slug"), "organizations.read")
+	if err != nil {
+		c.HTML(http.StatusForbidden, "flash", gin.H{"Message": "forbidden"})
+		return
+	}
+	settings := map[string]any{}
+	if len(org.Settings) > 0 {
+		_ = json.Unmarshal(org.Settings, &settings)
+	}
+	c.HTML(http.StatusOK, "org_settings", gin.H{
+		"Slug":        c.Param("slug"),
+		"OrgName":     org.Name,
+		"Description": org.Description,
+		"Settings":    settings,
+	})
+}
+
+func (h *Handler) orgSettingsUpdate(c *gin.Context) {
+	user, _ := middleware.UserFromContext(c)
+	org, isAdmin, err := h.rbac.IsOrgAdmin(user.ID, c.Param("slug"))
+	if err != nil {
+		c.HTML(http.StatusForbidden, "flash", gin.H{"Message": "forbidden"})
+		return
+	}
+	if !isAdmin {
+		c.HTML(http.StatusForbidden, "flash", gin.H{"Message": "admin role required"})
+		return
+	}
+	name := strings.TrimSpace(c.PostForm("name"))
+	description := strings.TrimSpace(c.PostForm("description"))
+	if err := h.rbac.UpdateOrganization(org.ID, name, description); err != nil {
+		c.HTML(http.StatusBadRequest, "flash", gin.H{"Message": err.Error()})
+		return
+	}
+	settings := map[string]any{
+		"defaultNamespaceProfile":  strings.TrimSpace(c.PostForm("default_namespace_profile")),
+		"defaultNamespaceInstance": strings.TrimSpace(c.PostForm("default_namespace_instance")),
+		"contactEmail":             strings.TrimSpace(c.PostForm("contact_email")),
+		"environment":              strings.TrimSpace(c.PostForm("environment")),
+	}
+	if err := h.rbac.UpdateOrganizationSettings(org.ID, settings); err != nil {
+		c.HTML(http.StatusBadRequest, "flash", gin.H{"Message": err.Error()})
+		return
+	}
+	c.HTML(http.StatusOK, "flash", gin.H{"Message": "organization settings updated"})
+}
+
+func (h *Handler) orgRBAC(c *gin.Context) {
+	if !h.ensureOrgPermission(c, "rbac.read") {
+		return
+	}
+	c.HTML(http.StatusOK, "org_rbac", gin.H{"Slug": c.Param("slug")})
+}
+
+func (h *Handler) orgRBACPanel(c *gin.Context) {
+	user, _ := middleware.UserFromContext(c)
+	data, status, err := h.buildRBACViewData(user.ID, c.Param("slug"))
+	if err != nil {
+		c.HTML(status, "flash", gin.H{"Message": err.Error()})
+		return
+	}
+	c.HTML(http.StatusOK, "rbac_panel", data)
+}
+
+func (h *Handler) rbacUpsertMembership(c *gin.Context) {
+	user, _ := middleware.UserFromContext(c)
+	org, err := h.rbac.Authorize(user.ID, c.Param("slug"), "rbac.write")
+	if err != nil {
+		c.HTML(http.StatusForbidden, "flash", gin.H{"Message": "forbidden"})
+		return
+	}
+	email := strings.TrimSpace(c.PostForm("email"))
+	role := strings.TrimSpace(c.PostForm("role"))
+	if email == "" || role == "" {
+		c.HTML(http.StatusBadRequest, "flash", gin.H{"Message": "email and role are required"})
+		return
+	}
+	custom := splitCSV(c.PostForm("custom_permissions"))
+	if err := h.rbac.UpsertMembership(org.ID, email, role, custom); err != nil {
+		c.HTML(http.StatusBadRequest, "flash", gin.H{"Message": err.Error()})
+		return
+	}
+	c.Header("HX-Trigger", "rbacChanged")
+	c.HTML(http.StatusOK, "flash", gin.H{"Message": "membership updated"})
+}
+
+func (h *Handler) rbacCreatePermission(c *gin.Context) {
+	user, _ := middleware.UserFromContext(c)
+	org, err := h.rbac.Authorize(user.ID, c.Param("slug"), "rbac.write")
+	if err != nil {
+		c.HTML(http.StatusForbidden, "flash", gin.H{"Message": "forbidden"})
+		return
+	}
+	name := strings.TrimSpace(c.PostForm("name"))
+	resource := strings.TrimSpace(c.PostForm("resource"))
+	action := strings.TrimSpace(c.PostForm("action"))
+	definition := strings.TrimSpace(c.PostForm("definition"))
+	if resource == "" || action == "" {
+		c.HTML(http.StatusBadRequest, "flash", gin.H{"Message": "resource and action are required"})
+		return
+	}
+	if name == "" {
+		name = resource + "." + action
+	}
+	err = h.rbac.CreatePermission(org.ID, models.Permission{
+		Name:       name,
+		Resource:   resource,
+		Action:     action,
+		Definition: definition,
+	})
+	if err != nil {
+		c.HTML(http.StatusBadRequest, "flash", gin.H{"Message": err.Error()})
+		return
+	}
+	c.Header("HX-Trigger", "rbacChanged")
+	c.HTML(http.StatusOK, "flash", gin.H{"Message": "custom permission created"})
+}
+
+func (h *Handler) buildRBACViewData(userID uuid.UUID, slug string) (gin.H, int, error) {
+	org, err := h.rbac.Authorize(userID, slug, "rbac.read")
+	if err != nil {
+		return nil, http.StatusForbidden, errors.New("forbidden")
+	}
+	memberships, err := h.rbac.ListMemberships(org.ID)
+	if err != nil {
+		return nil, http.StatusInternalServerError, errors.New("failed to load memberships")
+	}
+	permissions, err := h.rbac.ListPermissions(org.ID)
+	if err != nil {
+		return nil, http.StatusInternalServerError, errors.New("failed to load permissions")
+	}
+	groups, err := h.rbac.ListGroups(org.ID)
+	if err != nil {
+		return nil, http.StatusInternalServerError, errors.New("failed to load groups")
+	}
+
+	userIDs := make([]uuid.UUID, 0, len(memberships))
+	for _, m := range memberships {
+		userIDs = append(userIDs, m.UserID)
+	}
+	usersByID, err := h.rbac.GetUsersByIDs(userIDs)
+	if err != nil {
+		return nil, http.StatusInternalServerError, errors.New("failed to load users")
+	}
+
+	memberRows := make([]membershipRow, 0, len(memberships))
+	for _, m := range memberships {
+		u := usersByID[m.UserID]
+		memberRows = append(memberRows, membershipRow{
+			UserID:      m.UserID.String(),
+			Email:       u.Email,
+			DisplayName: u.DisplayName,
+			Role:        m.Role,
+			Permission:  m.Permission,
+		})
+	}
+
+	permNames := make([]string, 0, len(permissions))
+	for _, p := range permissions {
+		permNames = append(permNames, p.Name)
+	}
+	sort.Strings(permNames)
+
+	groupRows := make([]groupRow, 0, len(groups))
+	for _, g := range groups {
+		groupMembers, membersErr := h.rbac.ListGroupMembers(org.ID, g.ID)
+		if membersErr != nil {
+			return nil, http.StatusInternalServerError, errors.New("failed to load group members")
+		}
+		groupPerms, permsErr := h.rbac.ListGroupPermissions(org.ID, g.ID)
+		if permsErr != nil {
+			return nil, http.StatusInternalServerError, errors.New("failed to load group permissions")
+		}
+
+		members := make([]membershipRow, 0, len(groupMembers))
+		for _, gm := range groupMembers {
+			members = append(members, membershipRow{
+				UserID:      gm.ID.String(),
+				Email:       gm.Email,
+				DisplayName: gm.DisplayName,
+			})
+		}
+		perms := make([]string, 0, len(groupPerms))
+		for _, gp := range groupPerms {
+			perms = append(perms, gp.Permission)
+		}
+		sort.Strings(perms)
+		groupRows = append(groupRows, groupRow{
+			ID:          g.ID.String(),
+			Name:        g.Name,
+			Members:     members,
+			Permissions: perms,
+		})
+	}
+
+	return gin.H{
+		"Slug":        slug,
+		"Memberships": memberRows,
+		"Permissions": permNames,
+		"Groups":      groupRows,
+	}, http.StatusOK, nil
+}
+
+func (h *Handler) rbacCreateGroup(c *gin.Context) {
+	user, _ := middleware.UserFromContext(c)
+	org, err := h.rbac.Authorize(user.ID, c.Param("slug"), "rbac.write")
+	if err != nil {
+		c.HTML(http.StatusForbidden, "flash", gin.H{"Message": "forbidden"})
+		return
+	}
+	name := strings.TrimSpace(c.PostForm("name"))
+	if name == "" {
+		c.HTML(http.StatusBadRequest, "flash", gin.H{"Message": "group name is required"})
+		return
+	}
+	if _, err := h.rbac.CreateGroup(org.ID, name); err != nil {
+		c.HTML(http.StatusBadRequest, "flash", gin.H{"Message": err.Error()})
+		return
+	}
+	c.Header("HX-Trigger", "rbacChanged")
+	c.HTML(http.StatusOK, "flash", gin.H{"Message": "group created"})
+}
+
+func (h *Handler) rbacDeleteGroup(c *gin.Context) {
+	user, _ := middleware.UserFromContext(c)
+	org, err := h.rbac.Authorize(user.ID, c.Param("slug"), "rbac.write")
+	if err != nil {
+		c.HTML(http.StatusForbidden, "flash", gin.H{"Message": "forbidden"})
+		return
+	}
+	groupID, err := uuid.Parse(c.Param("groupID"))
+	if err != nil {
+		c.HTML(http.StatusBadRequest, "flash", gin.H{"Message": "invalid group id"})
+		return
+	}
+	if err := h.rbac.DeleteGroup(org.ID, groupID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.HTML(http.StatusNotFound, "flash", gin.H{"Message": "group not found"})
+			return
+		}
+		c.HTML(http.StatusBadRequest, "flash", gin.H{"Message": err.Error()})
+		return
+	}
+	c.Header("HX-Trigger", "rbacChanged")
+	c.HTML(http.StatusOK, "flash", gin.H{"Message": "group deleted"})
+}
+
+func (h *Handler) rbacAddGroupMember(c *gin.Context) {
+	user, _ := middleware.UserFromContext(c)
+	org, err := h.rbac.Authorize(user.ID, c.Param("slug"), "rbac.write")
+	if err != nil {
+		c.HTML(http.StatusForbidden, "flash", gin.H{"Message": "forbidden"})
+		return
+	}
+	groupID, err := uuid.Parse(c.Param("groupID"))
+	if err != nil {
+		c.HTML(http.StatusBadRequest, "flash", gin.H{"Message": "invalid group id"})
+		return
+	}
+	email := strings.TrimSpace(c.PostForm("email"))
+	if email == "" {
+		c.HTML(http.StatusBadRequest, "flash", gin.H{"Message": "email is required"})
+		return
+	}
+	if _, err := h.rbac.AddGroupMemberByEmail(org.ID, groupID, email); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.HTML(http.StatusNotFound, "flash", gin.H{"Message": "group not found"})
+			return
+		}
+		c.HTML(http.StatusBadRequest, "flash", gin.H{"Message": err.Error()})
+		return
+	}
+	c.Header("HX-Trigger", "rbacChanged")
+	c.HTML(http.StatusOK, "flash", gin.H{"Message": "member added"})
+}
+
+func (h *Handler) rbacRemoveGroupMember(c *gin.Context) {
+	user, _ := middleware.UserFromContext(c)
+	org, err := h.rbac.Authorize(user.ID, c.Param("slug"), "rbac.write")
+	if err != nil {
+		c.HTML(http.StatusForbidden, "flash", gin.H{"Message": "forbidden"})
+		return
+	}
+	groupID, err := uuid.Parse(c.Param("groupID"))
+	if err != nil {
+		c.HTML(http.StatusBadRequest, "flash", gin.H{"Message": "invalid group id"})
+		return
+	}
+	userID, err := uuid.Parse(c.Param("userID"))
+	if err != nil {
+		c.HTML(http.StatusBadRequest, "flash", gin.H{"Message": "invalid user id"})
+		return
+	}
+	if err := h.rbac.RemoveGroupMember(org.ID, groupID, userID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.HTML(http.StatusNotFound, "flash", gin.H{"Message": "group not found"})
+			return
+		}
+		c.HTML(http.StatusBadRequest, "flash", gin.H{"Message": err.Error()})
+		return
+	}
+	c.Header("HX-Trigger", "rbacChanged")
+	c.HTML(http.StatusOK, "flash", gin.H{"Message": "member removed"})
+}
+
+func (h *Handler) rbacAddGroupPermission(c *gin.Context) {
+	user, _ := middleware.UserFromContext(c)
+	org, err := h.rbac.Authorize(user.ID, c.Param("slug"), "rbac.write")
+	if err != nil {
+		c.HTML(http.StatusForbidden, "flash", gin.H{"Message": "forbidden"})
+		return
+	}
+	groupID, err := uuid.Parse(c.Param("groupID"))
+	if err != nil {
+		c.HTML(http.StatusBadRequest, "flash", gin.H{"Message": "invalid group id"})
+		return
+	}
+	permission := strings.TrimSpace(c.PostForm("permission"))
+	if permission == "" {
+		c.HTML(http.StatusBadRequest, "flash", gin.H{"Message": "permission is required"})
+		return
+	}
+	if err := h.rbac.AddGroupPermission(org.ID, groupID, permission); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.HTML(http.StatusNotFound, "flash", gin.H{"Message": "group not found"})
+			return
+		}
+		c.HTML(http.StatusBadRequest, "flash", gin.H{"Message": err.Error()})
+		return
+	}
+	c.Header("HX-Trigger", "rbacChanged")
+	c.HTML(http.StatusOK, "flash", gin.H{"Message": "permission added"})
+}
+
+func (h *Handler) rbacRemoveGroupPermission(c *gin.Context) {
+	user, _ := middleware.UserFromContext(c)
+	org, err := h.rbac.Authorize(user.ID, c.Param("slug"), "rbac.write")
+	if err != nil {
+		c.HTML(http.StatusForbidden, "flash", gin.H{"Message": "forbidden"})
+		return
+	}
+	groupID, err := uuid.Parse(c.Param("groupID"))
+	if err != nil {
+		c.HTML(http.StatusBadRequest, "flash", gin.H{"Message": "invalid group id"})
+		return
+	}
+	permission := strings.TrimSpace(c.PostForm("permission"))
+	if permission == "" {
+		c.HTML(http.StatusBadRequest, "flash", gin.H{"Message": "permission is required"})
+		return
+	}
+	if err := h.rbac.RemoveGroupPermission(org.ID, groupID, permission); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.HTML(http.StatusNotFound, "flash", gin.H{"Message": "group not found"})
+			return
+		}
+		c.HTML(http.StatusBadRequest, "flash", gin.H{"Message": err.Error()})
+		return
+	}
+	c.Header("HX-Trigger", "rbacChanged")
+	c.HTML(http.StatusOK, "flash", gin.H{"Message": "permission removed"})
+}
+
+func (h *Handler) orgOIDC(c *gin.Context) {
+	user, _ := middleware.UserFromContext(c)
+	org, err := h.rbac.Authorize(user.ID, c.Param("slug"), "organizations.read")
+	if err != nil {
+		c.HTML(http.StatusForbidden, "flash", gin.H{"Message": "forbidden"})
+		return
+	}
+	cfg, err := h.rbac.GetOIDCConfig(org.ID)
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		c.HTML(http.StatusInternalServerError, "flash", gin.H{"Message": "failed to load OIDC config"})
+		return
+	}
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		cfg.GroupClaim = "groups"
+		cfg.UsernameClaim = "email"
+	}
+	mappings, err := h.rbac.ListOIDCMapping(org.ID)
+	if err != nil {
+		c.HTML(http.StatusInternalServerError, "flash", gin.H{"Message": "failed to load OIDC mappings"})
+		return
+	}
+	c.HTML(http.StatusOK, "org_oidc", gin.H{
+		"Slug":     c.Param("slug"),
+		"Config":   cfg,
+		"Mappings": mappings,
+	})
+}
+
+func (h *Handler) oidcSaveConfig(c *gin.Context) {
+	user, _ := middleware.UserFromContext(c)
+	org, err := h.rbac.Authorize(user.ID, c.Param("slug"), "organizations.write")
+	if err != nil {
+		c.HTML(http.StatusForbidden, "flash", gin.H{"Message": "forbidden"})
+		return
+	}
+	cfg := models.OIDCConfig{
+		IssuerURL:     strings.TrimSpace(c.PostForm("issuer_url")),
+		ClientID:      strings.TrimSpace(c.PostForm("client_id")),
+		ClientSecret:  strings.TrimSpace(c.PostForm("client_secret")),
+		GroupClaim:    strings.TrimSpace(c.PostForm("group_claim")),
+		UsernameClaim: strings.TrimSpace(c.PostForm("username_claim")),
+		Enabled:       parseBoolPost(c.PostForm("enabled")),
+	}
+	if cfg.GroupClaim == "" {
+		cfg.GroupClaim = "groups"
+	}
+	if cfg.UsernameClaim == "" {
+		cfg.UsernameClaim = "email"
+	}
+	if cfg.IssuerURL == "" || cfg.ClientID == "" || cfg.ClientSecret == "" {
+		c.HTML(http.StatusBadRequest, "flash", gin.H{"Message": "issuer url, client id and client secret are required"})
+		return
+	}
+	if err := h.rbac.UpsertOIDCConfig(org.ID, cfg); err != nil {
+		c.HTML(http.StatusBadRequest, "flash", gin.H{"Message": err.Error()})
+		return
+	}
+	c.Header("HX-Refresh", "true")
+	c.HTML(http.StatusOK, "flash", gin.H{"Message": "OIDC configuration updated"})
+}
+
+func (h *Handler) oidcCreateMapping(c *gin.Context) {
+	user, _ := middleware.UserFromContext(c)
+	org, err := h.rbac.Authorize(user.ID, c.Param("slug"), "organizations.write")
+	if err != nil {
+		c.HTML(http.StatusForbidden, "flash", gin.H{"Message": "forbidden"})
+		return
+	}
+	mapping := models.OIDCMapping{
+		SubjectType:      strings.TrimSpace(c.PostForm("subject_type")),
+		ExternalValue:    strings.TrimSpace(c.PostForm("external_value")),
+		ExternalGroup:    strings.TrimSpace(c.PostForm("external_group")),
+		MappedRole:       strings.TrimSpace(c.PostForm("mapped_role")),
+		CustomPermission: strings.TrimSpace(c.PostForm("custom_permission")),
+	}
+	if mapping.ExternalValue == "" {
+		mapping.ExternalValue = mapping.ExternalGroup
+	}
+	if mapping.ExternalValue == "" || mapping.MappedRole == "" {
+		c.HTML(http.StatusBadRequest, "flash", gin.H{"Message": "external value and role are required"})
+		return
+	}
+	if err := h.rbac.CreateOIDCMapping(org.ID, mapping); err != nil {
+		c.HTML(http.StatusBadRequest, "flash", gin.H{"Message": err.Error()})
+		return
+	}
+	c.Header("HX-Refresh", "true")
+	c.HTML(http.StatusOK, "flash", gin.H{"Message": "OIDC mapping added"})
+}
+
+func (h *Handler) oidcDeleteMapping(c *gin.Context) {
+	user, _ := middleware.UserFromContext(c)
+	org, err := h.rbac.Authorize(user.ID, c.Param("slug"), "organizations.write")
+	if err != nil {
+		c.HTML(http.StatusForbidden, "flash", gin.H{"Message": "forbidden"})
+		return
+	}
+	id, err := uuid.Parse(c.Param("mappingID"))
+	if err != nil {
+		c.HTML(http.StatusBadRequest, "flash", gin.H{"Message": "invalid mapping id"})
+		return
+	}
+	if err := h.rbac.DeleteOIDCMapping(org.ID, id); err != nil {
+		c.HTML(http.StatusBadRequest, "flash", gin.H{"Message": err.Error()})
+		return
+	}
+	c.Header("HX-Refresh", "true")
+	c.HTML(http.StatusOK, "flash", gin.H{"Message": "OIDC mapping deleted"})
+}
+
+func (h *Handler) orgAudit(c *gin.Context) {
+	user, _ := middleware.UserFromContext(c)
+	org, err := h.rbac.Authorize(user.ID, c.Param("slug"), "organizations.read")
+	if err != nil {
+		c.HTML(http.StatusForbidden, "flash", gin.H{"Message": "forbidden"})
+		return
+	}
+	events, err := h.rbac.ListAuditEvents(org.ID, 200)
+	if err != nil {
+		c.HTML(http.StatusInternalServerError, "flash", gin.H{"Message": "failed to load audit events"})
+		return
+	}
+	actorIDs := make([]uuid.UUID, 0, len(events))
+	for _, e := range events {
+		actorIDs = append(actorIDs, e.ActorUserID)
+	}
+	actors, err := h.rbac.GetUsersByIDs(actorIDs)
+	if err != nil {
+		c.HTML(http.StatusInternalServerError, "flash", gin.H{"Message": "failed to load audit actors"})
+		return
+	}
+	rows := make([]auditEventRow, 0, len(events))
+	for _, e := range events {
+		rows = append(rows, auditEventRow{
+			CreatedAt: e.CreatedAt.Format("2006-01-02 15:04:05 MST"),
+			EventType: e.EventType,
+			Status:    e.Status,
+			Resource:  e.Resource,
+			Message:   e.Message,
+			Actor:     actorLabel(actors[e.ActorUserID], e.ActorUserID),
+			Details:   prettyJSON(e.Details),
+		})
+	}
+	c.HTML(http.StatusOK, "org_audit", gin.H{"Slug": c.Param("slug"), "Rows": rows})
+}
+
+func (h *Handler) orgResources(c *gin.Context) {
+	user, _ := middleware.UserFromContext(c)
+	_, err := h.rbac.Authorize(user.ID, c.Param("slug"), "organizations.read")
+	if err != nil {
+		c.HTML(http.StatusForbidden, "flash", gin.H{"Message": "forbidden"})
+		return
+	}
+	classes := []string{}
+	classErr := ""
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 20*time.Second)
+	defer cancel()
+	classes, err = h.kubeSvc.ListGatewayClasses(ctx)
+	if err != nil {
+		classErr = err.Error()
+		classes = []string{}
+	}
+	sort.Strings(classes)
+	kinds := allResourceKinds()
+	for i := range kinds {
+		if kinds[i].Param == "gateways" {
+			kinds[i].GatewayClasses = classes
+			break
+		}
+	}
+	c.HTML(http.StatusOK, "org_resources", gin.H{
+		"Slug":              c.Param("slug"),
+		"Kinds":             kinds,
+		"GatewayClasses":    classes,
+		"GatewayClassError": classErr,
+	})
+}
+
+func (h *Handler) resourceNamespacesPanel(c *gin.Context) {
+	user, _ := middleware.UserFromContext(c)
+	org, err := h.rbac.Authorize(user.ID, c.Param("slug"), "gateway.read")
+	if err != nil {
+		c.HTML(http.StatusForbidden, "flash", gin.H{"Message": "forbidden"})
+		return
+	}
+	namespaces, defaultNS, err := h.loadNamespaceOptions(c, org.ID)
+	if err != nil {
+		c.HTML(http.StatusInternalServerError, "flash", gin.H{"Message": err.Error()})
+		return
+	}
+	profiles := service.NamespaceProfiles()
+	sort.Strings(profiles)
+	instances := service.NamespaceInstances()
+	sort.Strings(instances)
+
+	defaultInstance := "default"
+	if len(instances) > 0 {
+		defaultInstance = instances[0]
+		for _, inst := range instances {
+			if inst == "default" {
+				defaultInstance = "default"
+				break
+			}
+		}
+	}
+
+	settings := map[string]any{}
+	if len(org.Settings) > 0 {
+		_ = json.Unmarshal(org.Settings, &settings)
+	}
+	if v, ok := settings["defaultNamespaceInstance"].(string); ok && strings.TrimSpace(v) != "" {
+		defaultInstance = strings.TrimSpace(v)
+	}
+
+	defaultProfile := "default"
+	if len(profiles) > 0 {
+		defaultProfile = profiles[0]
+		for _, p := range profiles {
+			if p == "default" {
+				defaultProfile = "default"
+				break
+			}
+		}
+	}
+
+	if v, ok := settings["defaultNamespaceProfile"].(string); ok && strings.TrimSpace(v) != "" {
+		defaultProfile = strings.TrimSpace(v)
+	}
+	labelOptions := namespaceLabelOptionsForInstance(defaultInstance)
+	c.HTML(http.StatusOK, "namespace_panel", gin.H{
+		"Slug":            c.Param("slug"),
+		"Namespaces":      namespaces,
+		"DefaultNS":       defaultNS,
+		"Instances":       instances,
+		"DefaultInstance": defaultInstance,
+		"Profiles":        profiles,
+		"DefaultProfile":  defaultProfile,
+		"LabelOptions":    labelOptions,
+	})
+}
+
+func (h *Handler) resourceNamespaceLabelOptions(c *gin.Context) {
+	user, _ := middleware.UserFromContext(c)
+	_, err := h.rbac.Authorize(user.ID, c.Param("slug"), "gateway.read")
+	if err != nil {
+		c.HTML(http.StatusForbidden, "flash", gin.H{"Message": "forbidden"})
+		return
+	}
+	instance := strings.TrimSpace(c.Query("instance"))
+	if instance == "" {
+		instance = "default"
+	}
+	c.HTML(http.StatusOK, "namespace_label_options", gin.H{
+		"LabelOptions": namespaceLabelOptionsForInstance(instance),
+	})
+}
+
+func (h *Handler) resourceNamespaceCreate(c *gin.Context) {
+	user, _ := middleware.UserFromContext(c)
+	org, err := h.rbac.Authorize(user.ID, c.Param("slug"), "gateway.write")
+	if err != nil {
+		c.HTML(http.StatusForbidden, "flash", gin.H{"Message": "forbidden"})
+		return
+	}
+	namespace := strings.TrimSpace(c.PostForm("name"))
+	if namespace == "" {
+		c.HTML(http.StatusBadRequest, "flash", gin.H{"Message": "namespace name is required"})
+		return
+	}
+	profile := strings.TrimSpace(c.PostForm("profile"))
+	instance := strings.TrimSpace(c.PostForm("instance"))
+	if profile == "" || instance == "" {
+		settings := map[string]any{}
+		if len(org.Settings) > 0 {
+			_ = json.Unmarshal(org.Settings, &settings)
+		}
+		if instance == "" {
+			if v, ok := settings["defaultNamespaceInstance"].(string); ok {
+				instance = strings.TrimSpace(v)
+			}
+		}
+		if profile == "" {
+			if v, ok := settings["defaultNamespaceProfile"].(string); ok {
+				profile = strings.TrimSpace(v)
+			}
+		}
+	}
+	if profile == "" {
+		profile = "default"
+	}
+	if instance == "" {
+		instance = "default"
+	}
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 20*time.Second)
+	defer cancel()
+	extra := map[string]string{}
+	for _, kv := range c.PostFormArray("labels") {
+		parts := strings.SplitN(strings.TrimSpace(kv), "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		extra[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
+	}
+	if err := h.kubeSvc.CreateNamespace(ctx, namespace, instance, profile, extra); err != nil {
+		_ = h.rbac.RecordAuditEvent(org.ID, user.ID, "namespace.create.failed", "namespace", "failed", "namespace creation failed", map[string]any{
+			"namespace": namespace,
+			"instance":  instance,
+			"profile":   profile,
+			"error":     err.Error(),
+		})
+		c.HTML(http.StatusBadGateway, "flash", gin.H{"Message": err.Error()})
+		return
+	}
+	if err := h.rbac.ClaimNamespace(org.ID, user.ID, namespace); err != nil {
+		c.HTML(http.StatusBadRequest, "flash", gin.H{"Message": err.Error()})
+		return
+	}
+	_ = h.rbac.RecordAuditEvent(org.ID, user.ID, "namespace.create", "namespace", "success", "namespace created and claimed", map[string]any{
+		"namespace": namespace,
+		"instance":  instance,
+		"profile":   profile,
+	})
+	c.Header("HX-Trigger", "namespaceChanged,resourceChanged")
+	c.HTML(http.StatusOK, "flash", gin.H{"Message": "namespace created and linked to organization"})
+}
+
+func (h *Handler) resourceNamespaceAdopt(c *gin.Context) {
+	user, _ := middleware.UserFromContext(c)
+	org, isAdmin, err := h.rbac.IsOrgAdmin(user.ID, c.Param("slug"))
+	if err != nil {
+		c.HTML(http.StatusForbidden, "flash", gin.H{"Message": "forbidden"})
+		return
+	}
+	if !isAdmin {
+		c.HTML(http.StatusForbidden, "flash", gin.H{"Message": "admin role required"})
+		return
+	}
+	namespace := strings.TrimSpace(c.PostForm("name"))
+	if namespace == "" {
+		c.HTML(http.StatusBadRequest, "flash", gin.H{"Message": "namespace name is required"})
+		return
+	}
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 20*time.Second)
+	defer cancel()
+	exists, err := h.kubeSvc.NamespaceExists(ctx, namespace)
+	if err != nil {
+		c.HTML(http.StatusBadGateway, "flash", gin.H{"Message": err.Error()})
+		return
+	}
+	if !exists {
+		c.HTML(http.StatusNotFound, "flash", gin.H{"Message": "namespace not found in cluster"})
+		return
+	}
+	if err := h.rbac.ClaimNamespace(org.ID, user.ID, namespace); err != nil {
+		c.HTML(http.StatusBadRequest, "flash", gin.H{"Message": err.Error()})
+		return
+	}
+	_ = h.rbac.RecordAuditEvent(org.ID, user.ID, "namespace.adopt", "namespace", "success", "existing namespace adopted", map[string]any{
+		"namespace": namespace,
+	})
+	c.Header("HX-Trigger", "namespaceChanged,resourceChanged")
+	c.HTML(http.StatusOK, "flash", gin.H{"Message": "namespace adopted"})
+}
+
+func (h *Handler) resourceListPartial(c *gin.Context) {
+	cfg, ok := resourceKindByParam(c.Param("kind"))
+	if !ok {
+		c.HTML(http.StatusNotFound, "flash", gin.H{"Message": "unknown resource kind"})
+		return
+	}
+	user, _ := middleware.UserFromContext(c)
+	org, err := h.rbac.Authorize(user.ID, c.Param("slug"), cfg.ReadPermission)
+	if err != nil {
+		c.HTML(http.StatusForbidden, "flash", gin.H{"Message": "forbidden"})
+		return
+	}
+	namespace := strings.TrimSpace(c.Query("namespace"))
+	if namespace == "" {
+		c.HTML(http.StatusBadRequest, "flash", gin.H{"Message": "select namespace"})
+		return
+	}
+	owned, err := h.rbac.NamespaceBelongsToOrg(org.ID, namespace)
+	if err != nil || !owned {
+		c.HTML(http.StatusForbidden, "flash", gin.H{"Message": "namespace is not owned by organization"})
+		return
+	}
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 20*time.Second)
+	defer cancel()
+	items, err := h.kubeSvc.List(ctx, cfg.GVR, namespace)
+	if err != nil {
+		c.HTML(http.StatusBadGateway, "flash", gin.H{"Message": err.Error()})
+		return
+	}
+	rows := make([]resourceRow, 0, len(items))
+	for _, item := range items {
+		rows = append(rows, resourceRow{
+			Name:      item.GetName(),
+			CreatedAt: item.GetCreationTimestamp().Format("2006-01-02 15:04:05 MST"),
+			Spec:      prettyObject(item.Object["spec"]),
+		})
+	}
+	c.HTML(http.StatusOK, "resource_list", gin.H{
+		"Rows":       rows,
+		"Kind":       cfg.Title,
+		"KindParam":  cfg.Param,
+		"Slug":       c.Param("slug"),
+		"Namespace":  namespace,
+		"FeedbackID": "resource-feedback-" + cfg.Param,
+	})
+}
+
+func (h *Handler) resourceApply(c *gin.Context) {
+	cfg, ok := resourceKindByParam(c.Param("kind"))
+	if !ok {
+		c.HTML(http.StatusNotFound, "flash", gin.H{"Message": "unknown resource kind"})
+		return
+	}
+	user, _ := middleware.UserFromContext(c)
+	org, err := h.rbac.Authorize(user.ID, c.Param("slug"), cfg.WritePermission)
+	if err != nil {
+		c.HTML(http.StatusForbidden, "flash", gin.H{"Message": "forbidden"})
+		return
+	}
+	namespace := strings.TrimSpace(c.PostForm("namespace"))
+	name := strings.TrimSpace(c.PostForm("name"))
+	if namespace == "" || name == "" {
+		c.HTML(http.StatusBadRequest, "flash", gin.H{"Message": "namespace and name are required"})
+		return
+	}
+	owned, err := h.rbac.NamespaceBelongsToOrg(org.ID, namespace)
+	if err != nil || !owned {
+		c.HTML(http.StatusForbidden, "flash", gin.H{"Message": "namespace is not owned by organization"})
+		return
+	}
+	spec, fieldErrs, err := buildSpecFromForm(cfg.Param, c)
+	if err != nil {
+		c.HTML(http.StatusBadRequest, "flash", gin.H{"Message": err.Error()})
+		return
+	}
+	if fieldErrs.any() {
+		c.HTML(http.StatusBadRequest, "validation_errors", gin.H{"Errors": fieldErrs})
+		return
+	}
+	if semanticErrs := validation.ValidateResourceSpec(cfg.Param, spec); len(semanticErrs) > 0 {
+		c.HTML(http.StatusBadRequest, "validation_errors", gin.H{"Errors": fromValidationFieldErrors(semanticErrs)})
+		return
+	}
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 20*time.Second)
+	defer cancel()
+	if err := h.kubeSvc.UpsertGeneric(ctx, cfg.GVR, namespace, name, spec); err != nil {
+		_ = h.rbac.RecordAuditEvent(org.ID, user.ID, "resource.apply.failed", cfg.Param, "failed", "resource apply failed", map[string]any{
+			"namespace": namespace,
+			"name":      name,
+			"error":     err.Error(),
+		})
+		c.HTML(http.StatusBadGateway, "flash", gin.H{"Message": err.Error()})
+		return
+	}
+	_ = h.rbac.RecordAuditEvent(org.ID, user.ID, "resource.apply", cfg.Param, "success", "resource applied", map[string]any{
+		"namespace": namespace,
+		"name":      name,
+	})
+	c.Header("HX-Trigger", "resourceChanged")
+	c.HTML(http.StatusOK, "flash", gin.H{"Message": fmt.Sprintf("%s/%s applied in %s", cfg.Title, name, namespace)})
+}
+
+func (h *Handler) resourceEdit(c *gin.Context) {
+	cfg, ok := resourceKindByParam(c.Param("kind"))
+	if !ok {
+		c.HTML(http.StatusNotFound, "flash", gin.H{"Message": "unknown resource kind"})
+		return
+	}
+	user, _ := middleware.UserFromContext(c)
+	org, err := h.rbac.Authorize(user.ID, c.Param("slug"), cfg.ReadPermission)
+	if err != nil {
+		c.HTML(http.StatusForbidden, "flash", gin.H{"Message": "forbidden"})
+		return
+	}
+	namespace := strings.TrimSpace(c.Query("namespace"))
+	name := strings.TrimSpace(c.Query("name"))
+	if namespace == "" || name == "" {
+		c.HTML(http.StatusBadRequest, "flash", gin.H{"Message": "namespace and name are required"})
+		return
+	}
+	owned, err := h.rbac.NamespaceBelongsToOrg(org.ID, namespace)
+	if err != nil || !owned {
+		c.HTML(http.StatusForbidden, "flash", gin.H{"Message": "namespace is not owned by organization"})
+		return
+	}
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 20*time.Second)
+	defer cancel()
+	items, err := h.kubeSvc.List(ctx, cfg.GVR, namespace)
+	if err != nil {
+		c.HTML(http.StatusBadGateway, "flash", gin.H{"Message": err.Error()})
+		return
+	}
+	var target *unstructured.Unstructured
+	for i := range items {
+		if items[i].GetName() == name {
+			target = &items[i]
+			break
+		}
+	}
+	if target == nil {
+		c.HTML(http.StatusNotFound, "flash", gin.H{"Message": "resource not found"})
+		return
+	}
+	specObj, _ := target.Object["spec"]
+	advanced := prettyObject(specObj)
+	fieldValues := extractFieldValues(cfg.Param, target.Object)
+	c.HTML(http.StatusOK, "resource_form_fill", gin.H{
+		"KindParam":    cfg.Param,
+		"Name":         name,
+		"AdvancedJSON": advanced,
+		"FieldValues":  fieldValues,
+	})
+}
+
+func (h *Handler) resourceDelete(c *gin.Context) {
+	cfg, ok := resourceKindByParam(c.Param("kind"))
+	if !ok {
+		c.HTML(http.StatusNotFound, "flash", gin.H{"Message": "unknown resource kind"})
+		return
+	}
+	user, _ := middleware.UserFromContext(c)
+	org, err := h.rbac.Authorize(user.ID, c.Param("slug"), cfg.WritePermission)
+	if err != nil {
+		c.HTML(http.StatusForbidden, "flash", gin.H{"Message": "forbidden"})
+		return
+	}
+	namespace := strings.TrimSpace(c.PostForm("namespace"))
+	name := strings.TrimSpace(c.PostForm("name"))
+	if namespace == "" || name == "" {
+		c.HTML(http.StatusBadRequest, "flash", gin.H{"Message": "namespace and name are required"})
+		return
+	}
+	owned, err := h.rbac.NamespaceBelongsToOrg(org.ID, namespace)
+	if err != nil || !owned {
+		c.HTML(http.StatusForbidden, "flash", gin.H{"Message": "namespace is not owned by organization"})
+		return
+	}
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 20*time.Second)
+	defer cancel()
+	if err := h.kubeSvc.Delete(ctx, cfg.GVR, namespace, name); err != nil {
+		_ = h.rbac.RecordAuditEvent(org.ID, user.ID, "resource.delete.failed", cfg.Param, "failed", "resource delete failed", map[string]any{
+			"namespace": namespace,
+			"name":      name,
+			"error":     err.Error(),
+		})
+		c.HTML(http.StatusBadGateway, "flash", gin.H{"Message": err.Error()})
+		return
+	}
+	_ = h.rbac.RecordAuditEvent(org.ID, user.ID, "resource.delete", cfg.Param, "success", "resource deleted", map[string]any{
+		"namespace": namespace,
+		"name":      name,
+	})
+	c.Header("HX-Trigger", "resourceChanged")
+	c.HTML(http.StatusOK, "flash", gin.H{"Message": fmt.Sprintf("%s/%s deleted from %s", cfg.Title, name, namespace)})
+}
+
+func (h *Handler) resources(c *gin.Context) {
+	c.HTML(http.StatusOK, "resources", gin.H{})
+}
+
+func (h *Handler) ensureOrgPermission(c *gin.Context, permission string) bool {
+	user, _ := middleware.UserFromContext(c)
+	_, err := h.rbac.Authorize(user.ID, c.Param("slug"), permission)
+	if err == nil {
+		return true
+	}
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		c.HTML(http.StatusNotFound, "flash", gin.H{"Message": "organization not found or no membership"})
+		return false
+	}
+	c.HTML(http.StatusForbidden, "flash", gin.H{"Message": "forbidden"})
+	return false
+}
+
+func actorLabel(user models.User, id uuid.UUID) string {
+	if user.ID == uuid.Nil {
+		return id.String()
+	}
+	if user.DisplayName != "" && user.Email != "" {
+		return fmt.Sprintf("%s (%s)", user.DisplayName, user.Email)
+	}
+	if user.Email != "" {
+		return user.Email
+	}
+	return id.String()
+}
+
+func prettyJSON(raw []byte) string {
+	if len(raw) == 0 {
+		return "{}"
+	}
+	var js any
+	if err := json.Unmarshal(raw, &js); err != nil {
+		return string(raw)
+	}
+	out := &bytes.Buffer{}
+	enc := json.NewEncoder(out)
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(js); err != nil {
+		return string(raw)
+	}
+	return out.String()
+}
+
+func prettyObject(v any) string {
+	data, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		return "{}"
+	}
+	return string(data)
+}
+
+func splitCSV(v string) []string {
+	parts := strings.Split(v, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		t := strings.TrimSpace(p)
+		if t != "" {
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
+func parseBoolPost(v string) bool {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "1", "true", "on", "yes":
+		return true
+	default:
+		return false
+	}
+}
+
+func namespaceLabelOptionsForInstance(instance string) []string {
+	profiles := service.NamespaceProfiles()
+	sort.Strings(profiles)
+	seen := map[string]bool{}
+	out := make([]string, 0)
+	for _, profile := range profiles {
+		labels, err := kube.BuildNamespaceLabels(instance, profile)
+		if err != nil {
+			continue
+		}
+		keys := make([]string, 0, len(labels))
+		for k := range labels {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			value := k + "=" + labels[k]
+			if seen[value] {
+				continue
+			}
+			seen[value] = true
+			out = append(out, value)
+		}
+	}
+	return out
+}
+
+func resourceKindByParam(param string) (resourceKind, bool) {
+	for _, k := range allResourceKinds() {
+		if k.Param == param {
+			return k, true
+		}
+	}
+	return resourceKind{}, false
+}
+
+func allResourceKinds() []resourceKind {
+	return []resourceKind{
+		{Param: "gateways", Title: "Gateway", ReadPermission: "gateway.read", WritePermission: "gateway.write", GVR: kube.GatewayGVR(), FormFields: []string{"gateway_class", "gateway_class_custom", "listener_name", "protocol", "port", "hostname"}},
+		{Param: "httproutes", Title: "HTTPRoute", ReadPermission: "gateway.read", WritePermission: "gateway.write", GVR: kube.HTTPRouteGVR(), FormFields: []string{"parent_gateway", "hostnames", "path_prefix", "backend_service", "backend_port"}},
+		{Param: "authpolicies", Title: "AuthPolicy", ReadPermission: "security.read", WritePermission: "security.write", GVR: kube.AuthPolicyGVR(), FormFields: []string{"target_kind", "target_name", "auth_rules_json"}},
+		{Param: "ratelimitpolicies", Title: "RateLimitPolicy", ReadPermission: "security.read", WritePermission: "security.write", GVR: kube.RateLimitPolicyGVR(), FormFields: []string{"target_kind", "target_name", "limit_name", "limit_count", "limit_window"}},
+	}
+}
+
+func toRows(items []unstructured.Unstructured) []resourceRow {
+	rows := make([]resourceRow, 0, len(items))
+	for _, item := range items {
+		rows = append(rows, resourceRow{
+			Name:      item.GetName(),
+			CreatedAt: item.GetCreationTimestamp().Format("2006-01-02 15:04:05 MST"),
+			Spec:      prettyObject(item.Object["spec"]),
+		})
+	}
+	return rows
+}
+
+func buildSpecFromForm(kind string, c *gin.Context) (map[string]any, validationErrors, error) {
+	advanced := strings.TrimSpace(c.PostForm("spec_json"))
+	if advanced != "" {
+		var spec map[string]any
+		if err := json.Unmarshal([]byte(advanced), &spec); err != nil {
+			return nil, nil, fmt.Errorf("invalid advanced JSON spec")
+		}
+		return spec, nil, nil
+	}
+
+	switch kind {
+	case "gateways":
+		return buildGatewaySpec(c)
+	case "httproutes":
+		return buildHTTPRouteSpec(c)
+	case "authpolicies":
+		return buildAuthPolicySpec(c)
+	case "ratelimitpolicies":
+		return buildRateLimitPolicySpec(c)
+	default:
+		return nil, nil, fmt.Errorf("unsupported resource kind")
+	}
+}
+
+func buildGatewaySpec(c *gin.Context) (map[string]any, validationErrors, error) {
+	gatewayClass := strings.TrimSpace(c.PostForm("gateway_class"))
+	if customClass := strings.TrimSpace(c.PostForm("gateway_class_custom")); customClass != "" {
+		gatewayClass = customClass
+	}
+	listenerName := strings.TrimSpace(c.PostForm("listener_name"))
+	hostname := strings.TrimSpace(c.PostForm("hostname"))
+	protocol := strings.TrimSpace(c.PostForm("protocol"))
+	port, portErr := parseIntField(c.PostForm("port"), "port")
+	errs := validationErrors{}
+	if gatewayClass == "" {
+		errs.add("gateway_class", "is required")
+	}
+	if listenerName == "" {
+		errs.add("listener_name", "is required")
+	}
+	if protocol == "" {
+		errs.add("protocol", "is required")
+	}
+	if portErr != "" {
+		errs.add("port", portErr)
+	}
+	if errs.any() {
+		return nil, errs, nil
+	}
+	listener := map[string]any{
+		"name":     listenerName,
+		"port":     port,
+		"protocol": protocol,
+	}
+	if hostname != "" {
+		listener["hostname"] = hostname
+	}
+	return map[string]any{
+		"gatewayClassName": gatewayClass,
+		"listeners":        []any{listener},
+	}, nil, nil
+}
+
+func buildHTTPRouteSpec(c *gin.Context) (map[string]any, validationErrors, error) {
+	parentGateway := strings.TrimSpace(c.PostForm("parent_gateway"))
+	pathPrefix := strings.TrimSpace(c.PostForm("path_prefix"))
+	backendService := strings.TrimSpace(c.PostForm("backend_service"))
+	backendPort, portErr := parseIntField(c.PostForm("backend_port"), "backend_port")
+	errs := validationErrors{}
+	if parentGateway == "" {
+		errs.add("parent_gateway", "is required")
+	}
+	if backendService == "" {
+		errs.add("backend_service", "is required")
+	}
+	if portErr != "" {
+		errs.add("backend_port", portErr)
+	}
+	if errs.any() {
+		return nil, errs, nil
+	}
+	if pathPrefix == "" {
+		pathPrefix = "/"
+	}
+
+	spec := map[string]any{
+		"parentRefs": []any{
+			map[string]any{
+				"group": "gateway.networking.k8s.io",
+				"kind":  "Gateway",
+				"name":  parentGateway,
+			},
+		},
+		"rules": []any{
+			map[string]any{
+				"matches": []any{
+					map[string]any{
+						"path": map[string]any{"type": "PathPrefix", "value": pathPrefix},
+					},
+				},
+				"backendRefs": []any{
+					map[string]any{"name": backendService, "port": backendPort},
+				},
+			},
+		},
+	}
+	hostnames := splitCSV(c.PostForm("hostnames"))
+	if len(hostnames) > 0 {
+		values := make([]any, 0, len(hostnames))
+		for _, h := range hostnames {
+			values = append(values, h)
+		}
+		spec["hostnames"] = values
+	}
+	return spec, nil, nil
+}
+
+func buildAuthPolicySpec(c *gin.Context) (map[string]any, validationErrors, error) {
+	targetKind := strings.TrimSpace(c.PostForm("target_kind"))
+	targetName := strings.TrimSpace(c.PostForm("target_name"))
+	if targetKind == "" {
+		targetKind = "HTTPRoute"
+	}
+	if targetName == "" {
+		return nil, validationErrors{{Field: "target_name", Message: "is required"}}, nil
+	}
+
+	spec := map[string]any{
+		"targetRef": map[string]any{
+			"group": "gateway.networking.k8s.io",
+			"kind":  targetKind,
+			"name":  targetName,
+		},
+	}
+	rulesJSON := strings.TrimSpace(c.PostForm("auth_rules_json"))
+	if rulesJSON != "" {
+		var rules map[string]any
+		if err := json.Unmarshal([]byte(rulesJSON), &rules); err != nil {
+			return nil, validationErrors{{Field: "auth_rules_json", Message: "must be valid JSON"}}, nil
+		}
+		spec["rules"] = rules
+	}
+	return spec, nil, nil
+}
+
+func buildRateLimitPolicySpec(c *gin.Context) (map[string]any, validationErrors, error) {
+	targetKind := strings.TrimSpace(c.PostForm("target_kind"))
+	targetName := strings.TrimSpace(c.PostForm("target_name"))
+	limitName := strings.TrimSpace(c.PostForm("limit_name"))
+	window := strings.TrimSpace(c.PostForm("limit_window"))
+	limit, countErr := parseIntField(c.PostForm("limit_count"), "limit_count")
+	if targetKind == "" {
+		targetKind = "HTTPRoute"
+	}
+	errs := validationErrors{}
+	if targetName == "" {
+		errs.add("target_name", "is required")
+	}
+	if limitName == "" {
+		errs.add("limit_name", "is required")
+	}
+	if window == "" {
+		errs.add("limit_window", "is required")
+	}
+	if countErr != "" {
+		errs.add("limit_count", countErr)
+	}
+	if errs.any() {
+		return nil, errs, nil
+	}
+	spec := map[string]any{
+		"targetRef": map[string]any{
+			"group": "gateway.networking.k8s.io",
+			"kind":  targetKind,
+			"name":  targetName,
+		},
+		"limits": map[string]any{
+			limitName: map[string]any{
+				"rates": []any{
+					map[string]any{
+						"limit":  limit,
+						"window": window,
+					},
+				},
+			},
+		},
+	}
+	return spec, nil, nil
+}
+
+func parseIntField(raw, name string) (int, string) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return 0, "is required"
+	}
+	v, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0, "must be an integer"
+	}
+	if name == "port" || name == "backend_port" {
+		if v < 1 || v > 65535 {
+			return 0, "must be between 1 and 65535"
+		}
+	}
+	if name == "limit_count" && v <= 0 {
+		return 0, "must be greater than 0"
+	}
+	return v, ""
+}
+
+func extractFieldValues(kind string, obj map[string]any) map[string]string {
+	spec, _ := obj["spec"].(map[string]any)
+	out := map[string]string{}
+	if spec == nil {
+		return out
+	}
+	switch kind {
+	case "gateways":
+		out["gateway_class"] = asString(spec["gatewayClassName"])
+		out["gateway_class_custom"] = asString(spec["gatewayClassName"])
+		listeners := asSlice(spec["listeners"])
+		if len(listeners) > 0 {
+			l0, _ := listeners[0].(map[string]any)
+			out["listener_name"] = asString(l0["name"])
+			out["protocol"] = asString(l0["protocol"])
+			out["port"] = asIntString(l0["port"])
+			out["hostname"] = asString(l0["hostname"])
+		}
+	case "httproutes":
+		hostnames := asSlice(spec["hostnames"])
+		if len(hostnames) > 0 {
+			values := make([]string, 0, len(hostnames))
+			for _, h := range hostnames {
+				values = append(values, asString(h))
+			}
+			out["hostnames"] = strings.Join(values, ",")
+		}
+		parents := asSlice(spec["parentRefs"])
+		if len(parents) > 0 {
+			p0, _ := parents[0].(map[string]any)
+			out["parent_gateway"] = asString(p0["name"])
+		}
+		rules := asSlice(spec["rules"])
+		if len(rules) > 0 {
+			r0, _ := rules[0].(map[string]any)
+			matches := asSlice(r0["matches"])
+			if len(matches) > 0 {
+				m0, _ := matches[0].(map[string]any)
+				path, _ := m0["path"].(map[string]any)
+				out["path_prefix"] = asString(path["value"])
+			}
+			backs := asSlice(r0["backendRefs"])
+			if len(backs) > 0 {
+				b0, _ := backs[0].(map[string]any)
+				out["backend_service"] = asString(b0["name"])
+				out["backend_port"] = asIntString(b0["port"])
+			}
+		}
+	case "authpolicies":
+		target, _ := spec["targetRef"].(map[string]any)
+		out["target_kind"] = asString(target["kind"])
+		out["target_name"] = asString(target["name"])
+		if rules, ok := spec["rules"]; ok {
+			out["auth_rules_json"] = prettyObject(rules)
+		}
+	case "ratelimitpolicies":
+		target, _ := spec["targetRef"].(map[string]any)
+		out["target_kind"] = asString(target["kind"])
+		out["target_name"] = asString(target["name"])
+		limits, _ := spec["limits"].(map[string]any)
+		for k, v := range limits {
+			out["limit_name"] = k
+			limitDef, _ := v.(map[string]any)
+			rates := asSlice(limitDef["rates"])
+			if len(rates) > 0 {
+				r0, _ := rates[0].(map[string]any)
+				out["limit_count"] = asIntString(r0["limit"])
+				out["limit_window"] = asString(r0["window"])
+			}
+			break
+		}
+	}
+	return out
+}
+
+func asSlice(v any) []any {
+	switch vv := v.(type) {
+	case []any:
+		return vv
+	default:
+		return nil
+	}
+}
+
+func asString(v any) string {
+	switch vv := v.(type) {
+	case string:
+		return vv
+	default:
+		return ""
+	}
+}
+
+func asIntString(v any) string {
+	switch vv := v.(type) {
+	case int:
+		return strconv.Itoa(vv)
+	case int32:
+		return strconv.Itoa(int(vv))
+	case int64:
+		return strconv.FormatInt(vv, 10)
+	case float64:
+		return strconv.Itoa(int(vv))
+	case json.Number:
+		return vv.String()
+	default:
+		return ""
+	}
+}
+
+func (h *Handler) loadNamespaceOptions(c *gin.Context, orgID uuid.UUID) ([]namespaceOption, string, error) {
+	ns, err := h.rbac.ListOrgNamespaces(orgID)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to load namespaces")
+	}
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 20*time.Second)
+	defer cancel()
+	namespaces := make([]namespaceOption, 0, len(ns))
+	for _, v := range ns {
+		exists, existsErr := h.kubeSvc.NamespaceExists(ctx, v.Namespace)
+		if existsErr != nil {
+			exists = false
+		}
+		namespaces = append(namespaces, namespaceOption{Name: v.Namespace, Exists: exists})
+	}
+	sort.Slice(namespaces, func(i, j int) bool { return namespaces[i].Name < namespaces[j].Name })
+	defaultNS := ""
+	if len(namespaces) > 0 {
+		defaultNS = namespaces[0].Name
+	}
+	return namespaces, defaultNS, nil
+}

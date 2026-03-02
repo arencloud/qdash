@@ -1,0 +1,47 @@
+{{define "home"}}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>QDash</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+  <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+</head>
+<body>
+  <div class="bg-orb orb-1"></div>
+  <div class="bg-orb orb-2"></div>
+  <main class="shell">
+    <section class="hero">
+      <h1>QDash Control Plane</h1>
+      <p>Multi-tenant GatewayAPI and policy dashboard with HTMX + Gin.</p>
+      <form method="post" action="/logout">
+        <button type="submit">Logout</button>
+      </form>
+    </section>
+
+    <section class="grid two">
+      <div class="card">
+        <h2>New Organization</h2>
+        <form hx-post="/organizations" hx-target="#org-list" hx-swap="outerHTML">
+          <label for="name">Organization Name</label>
+          <input id="name" name="name" placeholder="Acme Platform" required>
+          <button type="submit">Create</button>
+        </form>
+      </div>
+
+      <div>
+        <h2>Your Organizations</h2>
+        {{template "org_list" .}}
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Resources</h2>
+      <p>Manage Gateway, HTTPRoute, AuthPolicy, RateLimitPolicy and Namespaces through API and UI workflows.</p>
+      <a href="/resources">Open Resource Center</a>
+    </section>
+  </main>
+</body>
+</html>
+{{end}}

@@ -1,0 +1,54 @@
+{{define "namespace_panel"}}
+<section class="card">
+  <h3>Namespace Context</h3>
+  <section id="namespace-feedback"></section>
+  <label for="ns-select">Owned Namespace</label>
+  <select id="ns-select" name="namespace">
+    {{range .Namespaces}}
+    <option value="{{.Name}}" {{if not .Exists}}disabled{{end}}>{{.Name}}{{if not .Exists}} (missing in cluster){{end}}</option>
+    {{else}}
+    <option value="">No owned namespaces</option>
+    {{end}}
+  </select>
+
+  <div class="grid two" style="margin-top:.8rem">
+    <form hx-post="/organizations/{{.Slug}}/resources/namespaces/create" hx-target="#namespace-feedback" hx-swap="innerHTML">
+      <label>Create Namespace</label>
+      <input name="name" placeholder="team-a" required>
+      <label>Istio Instance</label>
+      <select name="instance" id="istio-instance" required hx-get="/organizations/{{.Slug}}/resources/namespaces/labels" hx-trigger="load,change" hx-target="#ns-label-options" hx-include="this">
+        {{range .Instances}}
+        <option value="{{.}}" {{if eq . $.DefaultInstance}}selected{{end}}>{{.}}</option>
+        {{end}}
+      </select>
+      <label>Istio Profile</label>
+      <select name="profile" required>
+        {{range .Profiles}}
+        <option value="{{.}}" {{if eq . $.DefaultProfile}}selected{{end}}>{{.}}</option>
+        {{end}}
+      </select>
+      <label>Additional Labels</label>
+      <div id="ns-label-options">
+        {{template "namespace_label_options" .}}
+      </div>
+      <button type="submit">Create + Claim</button>
+    </form>
+
+    <form hx-post="/organizations/{{.Slug}}/resources/namespaces/adopt" hx-target="#namespace-feedback" hx-swap="innerHTML">
+      <label>Adopt Existing Namespace (Admin)</label>
+      <input name="name" placeholder="existing-ns" required>
+      <button type="submit">Adopt</button>
+    </form>
+  </div>
+</section>
+{{end}}
+
+{{define "namespace_label_options"}}
+<div class="checkbox-list">
+  {{range .LabelOptions}}
+  <label><input type="checkbox" name="labels" value="{{.}}"> {{.}}</label>
+  {{else}}
+  <span>No additional label options</span>
+  {{end}}
+</div>
+{{end}}

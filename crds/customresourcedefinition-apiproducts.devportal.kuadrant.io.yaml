@@ -1,0 +1,2642 @@
+﻿kind: CustomResourceDefinition
+apiVersion: apiextensions.k8s.io/v1
+metadata:
+  name: apiproducts.devportal.kuadrant.io
+  uid: 77ff6172-a93d-4cf2-972d-d8a6b840d6ae
+  resourceVersion: '8143031'
+  generation: 1
+  creationTimestamp: '2026-02-26T12:13:38Z'
+  labels:
+    olm.managed: 'true'
+    operators.coreos.com/rhcl-operator.openshift-operators: ''
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.18.0
+    operatorframework.io/installed-alongside-3f36d83daa5babf2: openshift-operators/rhcl-operator.v1.3.0
+  managedFields:
+    - manager: catalog
+      operation: Update
+      apiVersion: apiextensions.k8s.io/v1
+      time: '2026-02-26T12:13:38Z'
+      fieldsType: FieldsV1
+      fieldsV1:
+        'f:metadata':
+          'f:annotations':
+            .: {}
+            'f:controller-gen.kubebuilder.io/version': {}
+            'f:operatorframework.io/installed-alongside-3f36d83daa5babf2': {}
+          'f:labels':
+            .: {}
+            'f:olm.managed': {}
+        'f:spec':
+          'f:conversion':
+            .: {}
+            'f:strategy': {}
+          'f:group': {}
+          'f:names':
+            'f:kind': {}
+            'f:listKind': {}
+            'f:plural': {}
+            'f:singular': {}
+          'f:scope': {}
+          'f:versions': {}
+    - manager: kube-apiserver
+      operation: Update
+      apiVersion: apiextensions.k8s.io/v1
+      time: '2026-02-26T12:13:38Z'
+      fieldsType: FieldsV1
+      fieldsV1:
+        'f:status':
+          'f:acceptedNames':
+            'f:kind': {}
+            'f:listKind': {}
+            'f:plural': {}
+            'f:singular': {}
+          'f:conditions':
+            'k:{"type":"Established"}':
+              .: {}
+              'f:lastTransitionTime': {}
+              'f:message': {}
+              'f:reason': {}
+              'f:status': {}
+              'f:type': {}
+            'k:{"type":"NamesAccepted"}':
+              .: {}
+              'f:lastTransitionTime': {}
+              'f:message': {}
+              'f:reason': {}
+              'f:status': {}
+              'f:type': {}
+      subresource: status
+    - manager: olm
+      operation: Update
+      apiVersion: apiextensions.k8s.io/v1
+      time: '2026-02-26T12:14:51Z'
+      fieldsType: FieldsV1
+      fieldsV1:
+        'f:metadata':
+          'f:labels':
+            'f:operators.coreos.com/rhcl-operator.openshift-operators': {}
+spec:
+  group: devportal.kuadrant.io
+  names:
+    plural: apiproducts
+    singular: apiproduct
+    kind: APIProduct
+    listKind: APIProductList
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          description: APIProduct is the Schema for the apiproducts API.
+          type: object
+          properties:
+            apiVersion:
+              description: |-
+                APIVersion defines the versioned schema of this representation of an object.
+                Servers should convert recognized schemas to the latest internal value, and
+                may reject unrecognized values.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+              type: string
+            kind:
+              description: |-
+                Kind is a string value representing the REST resource this object represents.
+                Servers may infer this from the endpoint the client submits requests to.
+                Cannot be updated.
+                In CamelCase.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+              type: string
+            metadata:
+              type: object
+            spec:
+              description: APIProductSpec defines the desired state of APIProduct.
+              type: object
+              required:
+                - approvalMode
+                - displayName
+                - publishStatus
+                - targetRef
+              properties:
+                contact:
+                  description: contact information for api owners
+                  type: object
+                  properties:
+                    email:
+                      description: contact email
+                      type: string
+                    slack:
+                      description: 'slack channel (e.g. #api-support)'
+                      type: string
+                    team:
+                      description: team name
+                      type: string
+                    url:
+                      description: url to team page or support portal
+                      type: string
+                publishStatus:
+                  description: 'controls whether the api product appears in the backstage catalog (Draft = hidden, Published = visible)'
+                  type: string
+                  default: Draft
+                  enum:
+                    - Draft
+                    - Published
+                targetRef:
+                  description: reference to the httproute that this api product represents
+                  type: object
+                  required:
+                    - group
+                    - kind
+                    - name
+                  properties:
+                    group:
+                      description: Group is the group of the target resource.
+                      type: string
+                      maxLength: 253
+                      pattern: '^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$'
+                    kind:
+                      description: Kind is kind of the target resource.
+                      type: string
+                      maxLength: 63
+                      minLength: 1
+                      pattern: '^[a-zA-Z]([-a-zA-Z0-9]*[a-zA-Z0-9])?$'
+                    name:
+                      description: Name is the name of the target resource.
+                      type: string
+                      maxLength: 253
+                      minLength: 1
+                  x-kubernetes-validations:
+                    - rule: self.group == 'gateway.networking.k8s.io'
+                      message: Invalid targetRef.group. The only supported value is 'gateway.networking.k8s.io'
+                    - rule: self.kind == 'HTTPRoute'
+                      message: Invalid targetRef.kind. The only supported value is 'HTTPRoute'
+                approvalMode:
+                  description: whether access requests are auto-approved or require manual review
+                  type: string
+                  default: manual
+                  enum:
+                    - automatic
+                    - manual
+                displayName:
+                  description: human-readable name for the api product
+                  type: string
+                version:
+                  description: 'api version (e.g. v1, v2)'
+                  type: string
+                tags:
+                  description: tags for categorisation and search
+                  type: array
+                  items:
+                    type: string
+                documentation:
+                  description: api documentation links
+                  type: object
+                  properties:
+                    docsURL:
+                      description: URL to general documentation
+                      type: string
+                    gitRepository:
+                      description: URL to git repository (shown as view source in backstage)
+                      type: string
+                    openAPISpecURL:
+                      description: URL to openapi specification (json/yaml)
+                      type: string
+                    swaggerUI:
+                      description: URL to swagger ui or similar interactive docs
+                      type: string
+                    techdocsRef:
+                      description: 'techdocs reference (e.g. url:https://github.com/org/repo or dir:. for local docs)'
+                      type: string
+                description:
+                  description: detailed description of the api product
+                  type: string
+            status:
+              description: APIProductStatus defines the observed state of APIProduct.
+              type: object
+              properties:
+                conditions:
+                  description: Represents the observations of a foo's current state.
+                  type: array
+                  items:
+                    description: Condition contains details for one aspect of the current state of this API Resource.
+                    type: object
+                    required:
+                      - lastTransitionTime
+                      - message
+                      - reason
+                      - status
+                      - type
+                    properties:
+                      lastTransitionTime:
+                        description: |-
+                          lastTransitionTime is the last time the condition transitioned from one status to another.
+                          This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                        type: string
+                        format: date-time
+                      message:
+                        description: |-
+                          message is a human readable message indicating details about the transition.
+                          This may be an empty string.
+                        type: string
+                        maxLength: 32768
+                      observedGeneration:
+                        description: |-
+                          observedGeneration represents the .metadata.generation that the condition was set based upon.
+                          For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                          with respect to the current state of the instance.
+                        type: integer
+                        format: int64
+                        minimum: 0
+                      reason:
+                        description: |-
+                          reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                          Producers of specific condition types may define expected values and meanings for this field,
+                          and whether the values are considered a guaranteed API.
+                          The value should be a CamelCase string.
+                          This field may not be empty.
+                        type: string
+                        maxLength: 1024
+                        minLength: 1
+                        pattern: '^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$'
+                      status:
+                        description: 'status of the condition, one of True, False, Unknown.'
+                        type: string
+                        enum:
+                          - 'True'
+                          - 'False'
+                          - Unknown
+                      type:
+                        description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                        type: string
+                        maxLength: 316
+                        pattern: '^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$'
+                  x-kubernetes-list-map-keys:
+                    - type
+                  x-kubernetes-list-type: map
+                discoveredAuthScheme:
+                  description: AuthPolicy discovered from httproute
+                  type: object
+                  properties:
+                    authentication:
+                      description: |-
+                        Authentication configs.
+                        At least one config MUST evaluate to a valid identity object for the auth request to be successful.
+                      type: object
+                      additionalProperties:
+                        type: object
+                        properties:
+                          oauth2Introspection:
+                            description: Authentication by OAuth2 token introspection.
+                            type: object
+                            required:
+                              - credentialsRef
+                              - endpoint
+                            properties:
+                              credentialsRef:
+                                description: 'Reference to a Kubernetes secret in the same namespace, that stores client credentials to the OAuth2 server.'
+                                type: object
+                                properties:
+                                  name:
+                                    description: |-
+                                      Name of the referent.
+                                      This field is effectively required, but due to backwards compatibility is
+                                      allowed to be empty. Instances of this type with an empty value here are
+                                      almost certainly wrong.
+                                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                    type: string
+                                    default: ''
+                                x-kubernetes-map-type: atomic
+                              endpoint:
+                                description: The full URL of the token introspection endpoint.
+                                type: string
+                              tokenTypeHint:
+                                description: |-
+                                  The token type hint for the token introspection.
+                                  If omitted, it defaults to "access_token".
+                                type: string
+                          cache:
+                            description: |-
+                              Caching options for the resolved object returned when applying this config.
+                              Omit it to avoid caching objects for this config.
+                            type: object
+                            required:
+                              - key
+                            properties:
+                              key:
+                                description: |-
+                                  Key used to store the entry in the cache.
+                                  The resolved key must be unique within the scope of this particular config.
+                                type: object
+                                properties:
+                                  expression:
+                                    description: |-
+                                      A Common Expression Language (CEL) expression that evaluates to a value.
+                                      String expressions are supported (https://pkg.go.dev/github.com/google/cel-go/ext#Strings).
+                                    type: string
+                                  selector:
+                                    description: |-
+                                      Simple path selector to fetch content from the authorization JSON (e.g. 'request.method') or a string template with variables that resolve to patterns (e.g. "Hello, {auth.identity.name}!").
+                                      Any pattern supported by https://pkg.go.dev/github.com/tidwall/gjson can be used.
+                                      The following Authorino custom modifiers are supported: @extract:{sep:" ",pos:0}, @replace{old:"",new:""}, @case:upper|lower, @base64:encode|decode and @strip.
+                                    type: string
+                                  value:
+                                    description: Static value
+                                    x-kubernetes-preserve-unknown-fields: true
+                              ttl:
+                                description: Duration (in seconds) of the external data in the cache before pulled again from the source.
+                                type: integer
+                                default: 60
+                          metrics:
+                            description: Whether this config should generate individual observability metrics
+                            type: boolean
+                            default: false
+                          priority:
+                            description: |-
+                              Priority group of the config.
+                              All configs in the same priority group are evaluated concurrently; consecutive priority groups are evaluated sequentially.
+                            type: integer
+                            default: 0
+                          apiKey:
+                            description: Authentication based on API keys stored in Kubernetes secrets.
+                            type: object
+                            required:
+                              - selector
+                            properties:
+                              allNamespaces:
+                                description: |-
+                                  Whether Authorino should look for API key secrets in all namespaces or only in the same namespace as the AuthConfig.
+                                  Enabling this option in namespaced Authorino instances has no effect.
+                                type: boolean
+                                default: false
+                              selector:
+                                description: Label selector used by Authorino to match secrets from the cluster storing valid credentials to authenticate to this service
+                                type: object
+                                properties:
+                                  matchExpressions:
+                                    description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
+                                    type: array
+                                    items:
+                                      description: |-
+                                        A label selector requirement is a selector that contains values, a key, and an operator that
+                                        relates the key and values.
+                                      type: object
+                                      required:
+                                        - key
+                                        - operator
+                                      properties:
+                                        key:
+                                          description: key is the label key that the selector applies to.
+                                          type: string
+                                        operator:
+                                          description: |-
+                                            operator represents a key's relationship to a set of values.
+                                            Valid operators are In, NotIn, Exists and DoesNotExist.
+                                          type: string
+                                        values:
+                                          description: |-
+                                            values is an array of string values. If the operator is In or NotIn,
+                                            the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                                            the values array must be empty. This array is replaced during a strategic
+                                            merge patch.
+                                          type: array
+                                          items:
+                                            type: string
+                                          x-kubernetes-list-type: atomic
+                                    x-kubernetes-list-type: atomic
+                                  matchLabels:
+                                    description: |-
+                                      matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                                      map is equivalent to an element of matchExpressions, whose key field is "key", the
+                                      operator is "In", and the values array contains only "value". The requirements are ANDed.
+                                    type: object
+                                    additionalProperties:
+                                      type: string
+                                x-kubernetes-map-type: atomic
+                          x509:
+                            description: |-
+                              Authentication based on client X.509 certificates.
+                              The certificates presented by the clients must be signed by a trusted CA whose certificates are stored in Kubernetes secrets.
+                            type: object
+                            required:
+                              - selector
+                            properties:
+                              allNamespaces:
+                                description: |-
+                                  Whether Authorino should look for TLS secrets in all namespaces or only in the same namespace as the AuthConfig.
+                                  Enabling this option in namespaced Authorino instances has no effect.
+                                type: boolean
+                                default: false
+                              selector:
+                                description: |-
+                                  Label selector used by Authorino to match secrets from the cluster storing trusted CA certificates to validate
+                                  clients trying to authenticate to this service
+                                type: object
+                                properties:
+                                  matchExpressions:
+                                    description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
+                                    type: array
+                                    items:
+                                      description: |-
+                                        A label selector requirement is a selector that contains values, a key, and an operator that
+                                        relates the key and values.
+                                      type: object
+                                      required:
+                                        - key
+                                        - operator
+                                      properties:
+                                        key:
+                                          description: key is the label key that the selector applies to.
+                                          type: string
+                                        operator:
+                                          description: |-
+                                            operator represents a key's relationship to a set of values.
+                                            Valid operators are In, NotIn, Exists and DoesNotExist.
+                                          type: string
+                                        values:
+                                          description: |-
+                                            values is an array of string values. If the operator is In or NotIn,
+                                            the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                                            the values array must be empty. This array is replaced during a strategic
+                                            merge patch.
+                                          type: array
+                                          items:
+                                            type: string
+                                          x-kubernetes-list-type: atomic
+                                    x-kubernetes-list-type: atomic
+                                  matchLabels:
+                                    description: |-
+                                      matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                                      map is equivalent to an element of matchExpressions, whose key field is "key", the
+                                      operator is "In", and the values array contains only "value". The requirements are ANDed.
+                                    type: object
+                                    additionalProperties:
+                                      type: string
+                                x-kubernetes-map-type: atomic
+                          jwt:
+                            description: Authentication based on JWT tokens.
+                            type: object
+                            properties:
+                              issuerUrl:
+                                description: |-
+                                  URL of the OpenID Connect (OIDC) token issuer endpoint.
+                                  Use it for automatically discovering the JWKS URL from an OpenID Connect Discovery endpoint (https://openid.net/specs/openid-connect-discovery-1_0.html).
+                                  The Well-Known Discovery path (i.e. "/.well-known/openid-configuration") is appended to this URL to fetch the OIDC configuration.
+                                  One of: jwksUrl, issuerUrl
+                                type: string
+                              jwksUrl:
+                                description: |-
+                                  URL of the JSON Web Key Set (JWKS) endpoint.
+                                  Use it for non-OpenID Connect (OIDC) JWT authentication, where the JWKS URL is known beforehand.
+                                  The JSON Web Keys (JWK) obtained from this endpoint are automatically cached and the caching updated whenever the kid of a JWT does not match any of the cached JWKs (https://openid.net/specs/openid-connect-core-1_0.html#RotateSigKeys).
+                                  One of: jwksUrl, issuerUrl
+                                type: string
+                              ttl:
+                                description: |-
+                                  Decides how long the OIDC configuration will be cached.
+                                  If omitted or set to zero, Authorino will never refresh the OIDC configuration.
+                                  This configuration does not affect the caching of JSON Web Keys (JWK), which is always updated whenever the kid of a JWT does not match any of the cached JWKs (https://openid.net/specs/openid-connect-core-1_0.html#RotateSigKeys)
+                                type: integer
+                            x-kubernetes-validations:
+                              - rule: '!(has(self.jwksUrl) && self.jwksUrl != '''' && has(self.issuerUrl) && self.issuerUrl != '''')'
+                                message: 'Use one of: jwksUrl, issuerUrl'
+                          overrides:
+                            description: |-
+                              Overrides the resolved identity object by setting the additional properties (claims) specified in this config,
+                              before appending the object to the authorization JSON.
+                              It requires the resolved identity object to always be a JSON object.
+                              Do not use this option with identity objects of other JSON types (array, string, etc).
+                            type: object
+                            additionalProperties:
+                              type: object
+                              properties:
+                                expression:
+                                  description: |-
+                                    A Common Expression Language (CEL) expression that evaluates to a value.
+                                    String expressions are supported (https://pkg.go.dev/github.com/google/cel-go/ext#Strings).
+                                  type: string
+                                selector:
+                                  description: |-
+                                    Simple path selector to fetch content from the authorization JSON (e.g. 'request.method') or a string template with variables that resolve to patterns (e.g. "Hello, {auth.identity.name}!").
+                                    Any pattern supported by https://pkg.go.dev/github.com/tidwall/gjson can be used.
+                                    The following Authorino custom modifiers are supported: @extract:{sep:" ",pos:0}, @replace{old:"",new:""}, @case:upper|lower, @base64:encode|decode and @strip.
+                                  type: string
+                                value:
+                                  description: Static value
+                                  x-kubernetes-preserve-unknown-fields: true
+                          plain:
+                            description: |-
+                              Identity object extracted from the context.
+                              Use this method when authentication is performed beforehand by a proxy and the resulting object passed to Authorino as JSON in the auth request.
+                            type: object
+                            properties:
+                              expression:
+                                description: |-
+                                  A Common Expression Language (CEL) expression that evaluates to a value that represents an identity.
+                                  String expressions are supported (https://pkg.go.dev/github.com/google/cel-go/ext#Strings).
+                                type: string
+                              selector:
+                                description: |-
+                                  Simple path selector to fetch content from the authorization JSON (e.g. 'request.method') or a string template with variables that resolve to patterns (e.g. "Hello, {auth.identity.name}!").
+                                  Any pattern supported by https://pkg.go.dev/github.com/tidwall/gjson can be used.
+                                  The following Authorino custom modifiers are supported: @extract:{sep:" ",pos:0}, @replace{old:"",new:""}, @case:upper|lower, @base64:encode|decode and @strip.
+                                type: string
+                          kubernetesTokenReview:
+                            description: Authentication by Kubernetes token review.
+                            type: object
+                            properties:
+                              audiences:
+                                description: |-
+                                  The list of audiences (scopes) that must be claimed in a Kubernetes authentication token supplied in the request, and reviewed by Authorino.
+                                  If omitted, Authorino will review tokens expecting the host name of the requested protected service amongst the audiences.
+                                type: array
+                                items:
+                                  type: string
+                          anonymous:
+                            description: Anonymous access.
+                            type: object
+                          defaults:
+                            description: |-
+                              Set default property values (claims) for the resolved identity object, that are set before appending the object to
+                              the authorization JSON. If the property is already present in the resolved identity object, the default value is ignored.
+                              It requires the resolved identity object to always be a JSON object.
+                              Do not use this option with identity objects of other JSON types (array, string, etc).
+                            type: object
+                            additionalProperties:
+                              type: object
+                              properties:
+                                expression:
+                                  description: |-
+                                    A Common Expression Language (CEL) expression that evaluates to a value.
+                                    String expressions are supported (https://pkg.go.dev/github.com/google/cel-go/ext#Strings).
+                                  type: string
+                                selector:
+                                  description: |-
+                                    Simple path selector to fetch content from the authorization JSON (e.g. 'request.method') or a string template with variables that resolve to patterns (e.g. "Hello, {auth.identity.name}!").
+                                    Any pattern supported by https://pkg.go.dev/github.com/tidwall/gjson can be used.
+                                    The following Authorino custom modifiers are supported: @extract:{sep:" ",pos:0}, @replace{old:"",new:""}, @case:upper|lower, @base64:encode|decode and @strip.
+                                  type: string
+                                value:
+                                  description: Static value
+                                  x-kubernetes-preserve-unknown-fields: true
+                          when:
+                            description: |-
+                              Conditions for Authorino to enforce this config.
+                              If omitted, the config will be enforced for all requests.
+                              If present, all conditions must match for the config to be enforced; otherwise, the config will be skipped.
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                all:
+                                  description: A list of pattern expressions to be evaluated as a logical AND.
+                                  type: array
+                                  items:
+                                    type: object
+                                    x-kubernetes-preserve-unknown-fields: true
+                                any:
+                                  description: A list of pattern expressions to be evaluated as a logical OR.
+                                  type: array
+                                  items:
+                                    type: object
+                                    x-kubernetes-preserve-unknown-fields: true
+                                operator:
+                                  description: |-
+                                    The binary operator to be applied to the content fetched from the authorization JSON, for comparison with "value".
+                                    Possible values are: "eq" (equal to), "neq" (not equal to), "incl" (includes; for arrays), "excl" (excludes; for arrays), "matches" (regex)
+                                  type: string
+                                  enum:
+                                    - eq
+                                    - neq
+                                    - incl
+                                    - excl
+                                    - matches
+                                patternRef:
+                                  description: Reference to a named set of pattern expressions
+                                  type: string
+                                predicate:
+                                  description: |-
+                                    A Common Expression Language (CEL) expression that evaluates to a boolean.
+                                    String expressions are supported (https://pkg.go.dev/github.com/google/cel-go/ext#Strings).
+                                  type: string
+                                selector:
+                                  description: |-
+                                    Path selector to fetch content from the authorization JSON (e.g. 'request.method').
+                                    Any pattern supported by https://pkg.go.dev/github.com/tidwall/gjson can be used.
+                                    Authorino custom JSON path modifiers are also supported.
+                                  type: string
+                                value:
+                                  description: |-
+                                    The value of reference for the comparison with the content fetched from the authorization JSON.
+                                    If used with the "matches" operator, the value must compile to a valid Golang regex.
+                                  type: string
+                          credentials:
+                            description: |-
+                              Defines where credentials are required to be passed in the request for authentication based on this config.
+                              If omitted, it defaults to credentials passed in the HTTP Authorization header and the "Bearer" prefix prepended to the secret credential value.
+                            type: object
+                            properties:
+                              authorizationHeader:
+                                type: object
+                                properties:
+                                  prefix:
+                                    type: string
+                              cookie:
+                                type: object
+                                required:
+                                  - name
+                                properties:
+                                  name:
+                                    type: string
+                              customHeader:
+                                type: object
+                                required:
+                                  - name
+                                properties:
+                                  name:
+                                    type: string
+                              queryString:
+                                type: object
+                                required:
+                                  - name
+                                properties:
+                                  name:
+                                    type: string
+                    authorization:
+                      description: |-
+                        Authorization policies.
+                        All policies MUST evaluate to "allowed = true" for the auth request be successful.
+                      type: object
+                      additionalProperties:
+                        type: object
+                        properties:
+                          cache:
+                            description: |-
+                              Caching options for the resolved object returned when applying this config.
+                              Omit it to avoid caching objects for this config.
+                            type: object
+                            required:
+                              - key
+                            properties:
+                              key:
+                                description: |-
+                                  Key used to store the entry in the cache.
+                                  The resolved key must be unique within the scope of this particular config.
+                                type: object
+                                properties:
+                                  expression:
+                                    description: |-
+                                      A Common Expression Language (CEL) expression that evaluates to a value.
+                                      String expressions are supported (https://pkg.go.dev/github.com/google/cel-go/ext#Strings).
+                                    type: string
+                                  selector:
+                                    description: |-
+                                      Simple path selector to fetch content from the authorization JSON (e.g. 'request.method') or a string template with variables that resolve to patterns (e.g. "Hello, {auth.identity.name}!").
+                                      Any pattern supported by https://pkg.go.dev/github.com/tidwall/gjson can be used.
+                                      The following Authorino custom modifiers are supported: @extract:{sep:" ",pos:0}, @replace{old:"",new:""}, @case:upper|lower, @base64:encode|decode and @strip.
+                                    type: string
+                                  value:
+                                    description: Static value
+                                    x-kubernetes-preserve-unknown-fields: true
+                              ttl:
+                                description: Duration (in seconds) of the external data in the cache before pulled again from the source.
+                                type: integer
+                                default: 60
+                          kubernetesSubjectAccessReview:
+                            description: Authorization by Kubernetes SubjectAccessReview
+                            type: object
+                            properties:
+                              authorizationGroups:
+                                description: Groups to check for existing permission in the Kubernetes RBAC alternatively to a specific user. This is typically obtained from a list of groups the user is a member of. Must be a static list of group names or dynamically resolve to one from the Authorization JSON.
+                                type: object
+                                properties:
+                                  expression:
+                                    description: |-
+                                      A Common Expression Language (CEL) expression that evaluates to a value.
+                                      String expressions are supported (https://pkg.go.dev/github.com/google/cel-go/ext#Strings).
+                                    type: string
+                                  selector:
+                                    description: |-
+                                      Simple path selector to fetch content from the authorization JSON (e.g. 'request.method') or a string template with variables that resolve to patterns (e.g. "Hello, {auth.identity.name}!").
+                                      Any pattern supported by https://pkg.go.dev/github.com/tidwall/gjson can be used.
+                                      The following Authorino custom modifiers are supported: @extract:{sep:" ",pos:0}, @replace{old:"",new:""}, @case:upper|lower, @base64:encode|decode and @strip.
+                                    type: string
+                                  value:
+                                    description: Static value
+                                    x-kubernetes-preserve-unknown-fields: true
+                              groups:
+                                description: |-
+                                  Groups the user must be a member of or, if `user` is omitted, the groups to check for authorization in the Kubernetes RBAC.
+                                  Deprecated: Use authorizationGroups instead.
+                                type: array
+                                items:
+                                  type: string
+                              resourceAttributes:
+                                description: |-
+                                  Use resourceAttributes to check permissions on Kubernetes resources.
+                                  If omitted, it performs a non-resource SubjectAccessReview, with verb and path inferred from the request.
+                                type: object
+                                properties:
+                                  group:
+                                    description: |-
+                                      API group of the resource.
+                                      Use '*' for all API groups.
+                                    type: object
+                                    properties:
+                                      expression:
+                                        description: |-
+                                          A Common Expression Language (CEL) expression that evaluates to a value.
+                                          String expressions are supported (https://pkg.go.dev/github.com/google/cel-go/ext#Strings).
+                                        type: string
+                                      selector:
+                                        description: |-
+                                          Simple path selector to fetch content from the authorization JSON (e.g. 'request.method') or a string template with variables that resolve to patterns (e.g. "Hello, {auth.identity.name}!").
+                                          Any pattern supported by https://pkg.go.dev/github.com/tidwall/gjson can be used.
+                                          The following Authorino custom modifiers are supported: @extract:{sep:" ",pos:0}, @replace{old:"",new:""}, @case:upper|lower, @base64:encode|decode and @strip.
+                                        type: string
+                                      value:
+                                        description: Static value
+                                        x-kubernetes-preserve-unknown-fields: true
+                                  name:
+                                    description: |-
+                                      Resource name
+                                      Omit it to check for authorization on all resources of the specified kind.
+                                    type: object
+                                    properties:
+                                      expression:
+                                        description: |-
+                                          A Common Expression Language (CEL) expression that evaluates to a value.
+                                          String expressions are supported (https://pkg.go.dev/github.com/google/cel-go/ext#Strings).
+                                        type: string
+                                      selector:
+                                        description: |-
+                                          Simple path selector to fetch content from the authorization JSON (e.g. 'request.method') or a string template with variables that resolve to patterns (e.g. "Hello, {auth.identity.name}!").
+                                          Any pattern supported by https://pkg.go.dev/github.com/tidwall/gjson can be used.
+                                          The following Authorino custom modifiers are supported: @extract:{sep:" ",pos:0}, @replace{old:"",new:""}, @case:upper|lower, @base64:encode|decode and @strip.
+                                        type: string
+                                      value:
+                                        description: Static value
+                                        x-kubernetes-preserve-unknown-fields: true
+                                  namespace:
+                                    description: Namespace where the user must have permissions on the resource.
+                                    type: object
+                                    properties:
+                                      expression:
+                                        description: |-
+                                          A Common Expression Language (CEL) expression that evaluates to a value.
+                                          String expressions are supported (https://pkg.go.dev/github.com/google/cel-go/ext#Strings).
+                                        type: string
+                                      selector:
+                                        description: |-
+                                          Simple path selector to fetch content from the authorization JSON (e.g. 'request.method') or a string template with variables that resolve to patterns (e.g. "Hello, {auth.identity.name}!").
+                                          Any pattern supported by https://pkg.go.dev/github.com/tidwall/gjson can be used.
+                                          The following Authorino custom modifiers are supported: @extract:{sep:" ",pos:0}, @replace{old:"",new:""}, @case:upper|lower, @base64:encode|decode and @strip.
+                                        type: string
+                                      value:
+                                        description: Static value
+                                        x-kubernetes-preserve-unknown-fields: true
+                                  resource:
+                                    description: |-
+                                      Resource kind
+                                      Use '*' for all resource kinds.
+                                    type: object
+                                    properties:
+                                      expression:
+                                        description: |-
+                                          A Common Expression Language (CEL) expression that evaluates to a value.
+                                          String expressions are supported (https://pkg.go.dev/github.com/google/cel-go/ext#Strings).
+                                        type: string
+                                      selector:
+                                        description: |-
+                                          Simple path selector to fetch content from the authorization JSON (e.g. 'request.method') or a string template with variables that resolve to patterns (e.g. "Hello, {auth.identity.name}!").
+                                          Any pattern supported by https://pkg.go.dev/github.com/tidwall/gjson can be used.
+                                          The following Authorino custom modifiers are supported: @extract:{sep:" ",pos:0}, @replace{old:"",new:""}, @case:upper|lower, @base64:encode|decode and @strip.
+                                        type: string
+                                      value:
+                                        description: Static value
+                                        x-kubernetes-preserve-unknown-fields: true
+                                  subresource:
+                                    description: Subresource kind
+                                    type: object
+                                    properties:
+                                      expression:
+                                        description: |-
+                                          A Common Expression Language (CEL) expression that evaluates to a value.
+                                          String expressions are supported (https://pkg.go.dev/github.com/google/cel-go/ext#Strings).
+                                        type: string
+                                      selector:
+                                        description: |-
+                                          Simple path selector to fetch content from the authorization JSON (e.g. 'request.method') or a string template with variables that resolve to patterns (e.g. "Hello, {auth.identity.name}!").
+                                          Any pattern supported by https://pkg.go.dev/github.com/tidwall/gjson can be used.
+                                          The following Authorino custom modifiers are supported: @extract:{sep:" ",pos:0}, @replace{old:"",new:""}, @case:upper|lower, @base64:encode|decode and @strip.
+                                        type: string
+                                      value:
+                                        description: Static value
+                                        x-kubernetes-preserve-unknown-fields: true
+                                  verb:
+                                    description: |-
+                                      Verb to check for authorization on the resource.
+                                      Use '*' for all verbs.
+                                    type: object
+                                    properties:
+                                      expression:
+                                        description: |-
+                                          A Common Expression Language (CEL) expression that evaluates to a value.
+                                          String expressions are supported (https://pkg.go.dev/github.com/google/cel-go/ext#Strings).
+                                        type: string
+                                      selector:
+                                        description: |-
+                                          Simple path selector to fetch content from the authorization JSON (e.g. 'request.method') or a string template with variables that resolve to patterns (e.g. "Hello, {auth.identity.name}!").
+                                          Any pattern supported by https://pkg.go.dev/github.com/tidwall/gjson can be used.
+                                          The following Authorino custom modifiers are supported: @extract:{sep:" ",pos:0}, @replace{old:"",new:""}, @case:upper|lower, @base64:encode|decode and @strip.
+                                        type: string
+                                      value:
+                                        description: Static value
+                                        x-kubernetes-preserve-unknown-fields: true
+                              user:
+                                description: |-
+                                  User to check for authorization in the Kubernetes RBAC.
+                                  Omit it to check for group authorization only.
+                                type: object
+                                properties:
+                                  expression:
+                                    description: |-
+                                      A Common Expression Language (CEL) expression that evaluates to a value.
+                                      String expressions are supported (https://pkg.go.dev/github.com/google/cel-go/ext#Strings).
+                                    type: string
+                                  selector:
+                                    description: |-
+                                      Simple path selector to fetch content from the authorization JSON (e.g. 'request.method') or a string template with variables that resolve to patterns (e.g. "Hello, {auth.identity.name}!").
+                                      Any pattern supported by https://pkg.go.dev/github.com/tidwall/gjson can be used.
+                                      The following Authorino custom modifiers are supported: @extract:{sep:" ",pos:0}, @replace{old:"",new:""}, @case:upper|lower, @base64:encode|decode and @strip.
+                                    type: string
+                                  value:
+                                    description: Static value
+                                    x-kubernetes-preserve-unknown-fields: true
+                          metrics:
+                            description: Whether this config should generate individual observability metrics
+                            type: boolean
+                            default: false
+                          opa:
+                            description: Open Policy Agent (OPA) Rego policy.
+                            type: object
+                            properties:
+                              allValues:
+                                description: |-
+                                  Returns the value of all Rego rules in the virtual document. Values can be read in subsequent evaluators/phases of the Auth Pipeline.
+                                  Otherwise, only the default `allow` rule will be exposed.
+                                  Returning all Rego rules can affect performance of OPA policies during reconciliation (policy precompile) and at runtime.
+                                type: boolean
+                                default: false
+                              externalPolicy:
+                                description: |-
+                                  Settings for fetching the OPA policy from an external registry.
+                                  Use it alternatively to 'rego'.
+                                  For the configurations of the HTTP request, the following options are not implemented: 'method', 'body', 'bodyParameters',
+                                  'contentType', 'headers', 'oauth2'. Use it only with: 'url', 'sharedSecret', 'credentials'.
+                                type: object
+                                properties:
+                                  method:
+                                    description: |-
+                                      HTTP verb used in the request to the service. Accepted values: GET (default), POST.
+                                      When the request method is POST, the authorization JSON is passed in the body of the request.
+                                    type: string
+                                    default: GET
+                                    enum:
+                                      - GET
+                                      - POST
+                                      - PUT
+                                      - PATCH
+                                      - DELETE
+                                      - HEAD
+                                      - OPTIONS
+                                      - CONNECT
+                                      - TRACE
+                                  body:
+                                    description: |-
+                                      Raw body of the HTTP request.
+                                      Supersedes 'bodyParameters'; use either one or the other.
+                                      Use it with method=POST; for GET requests, set parameters as query string in the 'endpoint' (placeholders can be used).
+                                    type: object
+                                    properties:
+                                      expression:
+                                        description: |-
+                                          A Common Expression Language (CEL) expression that evaluates to a value.
+                                          String expressions are supported (https://pkg.go.dev/github.com/google/cel-go/ext#Strings).
+                                        type: string
+                                      selector:
+                                        description: |-
+                                          Simple path selector to fetch content from the authorization JSON (e.g. 'request.method') or a string template with variables that resolve to patterns (e.g. "Hello, {auth.identity.name}!").
+                                          Any pattern supported by https://pkg.go.dev/github.com/tidwall/gjson can be used.
+                                          The following Authorino custom modifiers are supported: @extract:{sep:" ",pos:0}, @replace{old:"",new:""}, @case:upper|lower, @base64:encode|decode and @strip.
+                                        type: string
+                                      value:
+                                        description: Static value
+                                        x-kubernetes-preserve-unknown-fields: true
+                                  headers:
+                                    description: Custom headers in the HTTP request.
+                                    type: object
+                                    additionalProperties:
+                                      type: object
+                                      properties:
+                                        expression:
+                                          description: |-
+                                            A Common Expression Language (CEL) expression that evaluates to a value.
+                                            String expressions are supported (https://pkg.go.dev/github.com/google/cel-go/ext#Strings).
+                                          type: string
+                                        selector:
+                                          description: |-
+                                            Simple path selector to fetch content from the authorization JSON (e.g. 'request.method') or a string template with variables that resolve to patterns (e.g. "Hello, {auth.identity.name}!").
+                                            Any pattern supported by https://pkg.go.dev/github.com/tidwall/gjson can be used.
+                                            The following Authorino custom modifiers are supported: @extract:{sep:" ",pos:0}, @replace{old:"",new:""}, @case:upper|lower, @base64:encode|decode and @strip.
+                                          type: string
+                                        value:
+                                          description: Static value
+                                          x-kubernetes-preserve-unknown-fields: true
+                                  urlExpression:
+                                    description: |-
+                                      A Common Expression Language (CEL) expression that evaluates to a string endpoint URL of the HTTP service to call.
+                                      String expressions are supported (https://pkg.go.dev/github.com/google/cel-go/ext#Strings).
+                                    type: string
+                                  bodyParameters:
+                                    description: |-
+                                      Custom parameters to encode in the body of the HTTP request.
+                                      Superseded by 'body'; use either one or the other.
+                                      Use it with method=POST; for GET requests, set parameters as query string in the 'endpoint' (placeholders can be used).
+                                    type: object
+                                    additionalProperties:
+                                      type: object
+                                      properties:
+                                        expression:
+                                          description: |-
+                                            A Common Expression Language (CEL) expression that evaluates to a value.
+                                            String expressions are supported (https://pkg.go.dev/github.com/google/cel-go/ext#Strings).
+                                          type: string
+                                        selector:
+                                          description: |-
+                                            Simple path selector to fetch content from the authorization JSON (e.g. 'request.method') or a string template with variables that resolve to patterns (e.g. "Hello, {auth.identity.name}!").
+                                            Any pattern supported by https://pkg.go.dev/github.com/tidwall/gjson can be used.
+                                            The following Authorino custom modifiers are supported: @extract:{sep:" ",pos:0}, @replace{old:"",new:""}, @case:upper|lower, @base64:encode|decode and @strip.
+                                          type: string
+                                        value:
+                                          description: Static value
+                                          x-kubernetes-preserve-unknown-fields: true
+                                  ttl:
+                                    description: Duration (in seconds) of the external data in the cache before pulled again from the source.
+                                    type: integer
+                                  url:
+                                    description: |-
+                                      Endpoint URL of the HTTP service.
+                                      The value can include variable placeholders in the format "{selector}", where "selector" is any pattern supported
+                                      by https://pkg.go.dev/github.com/tidwall/gjson and selects value from the authorization JSON.
+                                      E.g. https://ext-auth-server.io/metadata?p={request.path}
+                                    type: string
+                                  contentType:
+                                    description: |-
+                                      Content-Type of the request body. Shapes how 'bodyParameters' are encoded.
+                                      Use it with method=POST; for GET requests, Content-Type is automatically set to 'text/plain'.
+                                    type: string
+                                    default: application/x-www-form-urlencoded
+                                    enum:
+                                      - application/x-www-form-urlencoded
+                                      - application/json
+                                  oauth2:
+                                    description: Authentication with the HTTP service by OAuth2 Client Credentials grant.
+                                    type: object
+                                    required:
+                                      - clientId
+                                      - clientSecretRef
+                                      - tokenUrl
+                                    properties:
+                                      cache:
+                                        description: |-
+                                          Caches and reuses the token until expired.
+                                          Set it to false to force fetch the token at every authorization request regardless of expiration.
+                                        type: boolean
+                                        default: true
+                                      clientId:
+                                        description: OAuth2 Client ID.
+                                        type: string
+                                      clientSecretRef:
+                                        description: Reference to a Kuberentes Secret key that stores that OAuth2 Client Secret.
+                                        type: object
+                                        required:
+                                          - key
+                                          - name
+                                        properties:
+                                          key:
+                                            description: The key of the secret to select from.  Must be a valid secret key.
+                                            type: string
+                                          name:
+                                            description: The name of the secret in the Authorino's namespace to select from.
+                                            type: string
+                                      extraParams:
+                                        description: Optional extra parameters for the requests to the token URL.
+                                        type: object
+                                        additionalProperties:
+                                          type: string
+                                      scopes:
+                                        description: 'Optional scopes for the client credentials grant, if supported by he OAuth2 server.'
+                                        type: array
+                                        items:
+                                          type: string
+                                      tokenUrl:
+                                        description: Token endpoint URL of the OAuth2 resource server.
+                                        type: string
+                                  credentials:
+                                    description: |-
+                                      Defines where client credentials will be passed in the request to the service.
+                                      If omitted, it defaults to client credentials passed in the HTTP Authorization header and the "Bearer" prefix expected prepended to the secret value.
+                                    type: object
+                                    properties:
+                                      authorizationHeader:
+                                        type: object
+                                        properties:
+                                          prefix:
+                                            type: string
+                                      cookie:
+                                        type: object
+                                        required:
+                                          - name
+                                        properties:
+                                          name:
+                                            type: string
+                                      customHeader:
+                                        type: object
+                                        required:
+                                          - name
+                                        properties:
+                                          name:
+                                            type: string
+                                      queryString:
+                                        type: object
+                                        required:
+                                          - name
+                                        properties:
+                                          name:
+                                            type: string
+                                  sharedSecretRef:
+                                    description: |-
+                                      Reference to a Secret key whose value will be passed by Authorino in the request.
+                                      The HTTP service can use the shared secret to authenticate the origin of the request.
+                                      Ignored if used together with oauth2.
+                                    type: object
+                                    required:
+                                      - key
+                                      - name
+                                    properties:
+                                      key:
+                                        description: The key of the secret to select from.  Must be a valid secret key.
+                                        type: string
+                                      name:
+                                        description: The name of the secret in the Authorino's namespace to select from.
+                                        type: string
+                              rego:
+                                description: |-
+                                  Authorization policy as a Rego language document.
+                                  The Rego document must include the "allow" condition, set by Authorino to "false" by default (i.e. requests are unauthorized unless changed).
+                                  The Rego document must NOT include the "package" declaration in line 1.
+                                type: string
+                          patternMatching:
+                            description: Pattern-matching authorization rules.
+                            type: object
+                            required:
+                              - patterns
+                            properties:
+                              patterns:
+                                type: array
+                                items:
+                                  type: object
+                                  properties:
+                                    all:
+                                      description: A list of pattern expressions to be evaluated as a logical AND.
+                                      type: array
+                                      items:
+                                        type: object
+                                        x-kubernetes-preserve-unknown-fields: true
+                                    any:
+                                      description: A list of pattern expressions to be evaluated as a logical OR.
+                                      type: array
+                                      items:
+                                        type: object
+                                        x-kubernetes-preserve-unknown-fields: true
+                                    operator:
+                                      description: |-
+                                        The binary operator to be applied to the content fetched from the authorization JSON, for comparison with "value".
+                                        Possible values are: "eq" (equal to), "neq" (not equal to), "incl" (includes; for arrays), "excl" (excludes; for arrays), "matches" (regex)
+                                      type: string
+                                      enum:
+                                        - eq
+                                        - neq
+                                        - incl
+                                        - excl
+                                        - matches
+                                    patternRef:
+                                      description: Reference to a named set of pattern expressions
+                                      type: string
+                                    predicate:
+                                      description: |-
+                                        A Common Expression Language (CEL) expression that evaluates to a boolean.
+                                        String expressions are supported (https://pkg.go.dev/github.com/google/cel-go/ext#Strings).
+                                      type: string
+                                    selector:
+                                      description: |-
+                                        Path selector to fetch content from the authorization JSON (e.g. 'request.method').
+                                        Any pattern supported by https://pkg.go.dev/github.com/tidwall/gjson can be used.
+                                        Authorino custom JSON path modifiers are also supported.
+                                      type: string
+                                    value:
+                                      description: |-
+                                        The value of reference for the comparison with the content fetched from the authorization JSON.
+                                        If used with the "matches" operator, the value must compile to a valid Golang regex.
+                                      type: string
+                          priority:
+                            description: |-
+                              Priority group of the config.
+                              All configs in the same priority group are evaluated concurrently; consecutive priority groups are evaluated sequentially.
+                            type: integer
+                            default: 0
+                          spicedb:
+                            description: Authorization decision delegated to external Authzed/SpiceDB server.
+                            type: object
+                            required:
+                              - endpoint
+                            properties:
+                              endpoint:
+                                description: 'Hostname and port number to the GRPC interface of the SpiceDB server (e.g. spicedb:50051).'
+                                type: string
+                              insecure:
+                                description: Insecure HTTP connection (i.e. disables TLS verification)
+                                type: boolean
+                              permission:
+                                description: The name of the permission (or relation) on which to execute the check.
+                                type: object
+                                properties:
+                                  expression:
+                                    description: |-
+                                      A Common Expression Language (CEL) expression that evaluates to a value.
+                                      String expressions are supported (https://pkg.go.dev/github.com/google/cel-go/ext#Strings).
+                                    type: string
+                                  selector:
+                                    description: |-
+                                      Simple path selector to fetch content from the authorization JSON (e.g. 'request.method') or a string template with variables that resolve to patterns (e.g. "Hello, {auth.identity.name}!").
+                                      Any pattern supported by https://pkg.go.dev/github.com/tidwall/gjson can be used.
+                                      The following Authorino custom modifiers are supported: @extract:{sep:" ",pos:0}, @replace{old:"",new:""}, @case:upper|lower, @base64:encode|decode and @strip.
+                                    type: string
+                                  value:
+                                    description: Static value
+                                    x-kubernetes-preserve-unknown-fields: true
+                              resource:
+                                description: The resource on which to check the permission or relation.
+                                type: object
+                                properties:
+                                  kind:
+                                    type: object
+                                    properties:
+                                      expression:
+                                        description: |-
+                                          A Common Expression Language (CEL) expression that evaluates to a value.
+                                          String expressions are supported (https://pkg.go.dev/github.com/google/cel-go/ext#Strings).
+                                        type: string
+                                      selector:
+                                        description: |-
+                                          Simple path selector to fetch content from the authorization JSON (e.g. 'request.method') or a string template with variables that resolve to patterns (e.g. "Hello, {auth.identity.name}!").
+                                          Any pattern supported by https://pkg.go.dev/github.com/tidwall/gjson can be used.
+                                          The following Authorino custom modifiers are supported: @extract:{sep:" ",pos:0}, @replace{old:"",new:""}, @case:upper|lower, @base64:encode|decode and @strip.
+                                        type: string
+                                      value:
+                                        description: Static value
+                                        x-kubernetes-preserve-unknown-fields: true
+                                  name:
+                                    type: object
+                                    properties:
+                                      expression:
+                                        description: |-
+                                          A Common Expression Language (CEL) expression that evaluates to a value.
+                                          String expressions are supported (https://pkg.go.dev/github.com/google/cel-go/ext#Strings).
+                                        type: string
+                                      selector:
+                                        description: |-
+                                          Simple path selector to fetch content from the authorization JSON (e.g. 'request.method') or a string template with variables that resolve to patterns (e.g. "Hello, {auth.identity.name}!").
+                                          Any pattern supported by https://pkg.go.dev/github.com/tidwall/gjson can be used.
+                                          The following Authorino custom modifiers are supported: @extract:{sep:" ",pos:0}, @replace{old:"",new:""}, @case:upper|lower, @base64:encode|decode and @strip.
+                                        type: string
+                                      value:
+                                        description: Static value
+                                        x-kubernetes-preserve-unknown-fields: true
+                              sharedSecretRef:
+                                description: Reference to a Secret key whose value will be used by Authorino to authenticate with the Authzed service.
+                                type: object
+                                required:
+                                  - key
+                                  - name
+                                properties:
+                                  key:
+                                    description: The key of the secret to select from.  Must be a valid secret key.
+                                    type: string
+                                  name:
+                                    description: The name of the secret in the Authorino's namespace to select from.
+                                    type: string
+                              subject:
+                                description: The subject that will be checked for the permission or relation.
+                                type: object
+                                properties:
+                                  kind:
+                                    type: object
+                                    properties:
+                                      expression:
+                                        description: |-
+                                          A Common Expression Language (CEL) expression that evaluates to a value.
+                                          String expressions are supported (https://pkg.go.dev/github.com/google/cel-go/ext#Strings).
+                                        type: string
+                                      selector:
+                                        description: |-
+                                          Simple path selector to fetch content from the authorization JSON (e.g. 'request.method') or a string template with variables that resolve to patterns (e.g. "Hello, {auth.identity.name}!").
+                                          Any pattern supported by https://pkg.go.dev/github.com/tidwall/gjson can be used.
+                                          The following Authorino custom modifiers are supported: @extract:{sep:" ",pos:0}, @replace{old:"",new:""}, @case:upper|lower, @base64:encode|decode and @strip.
+                                        type: string
+                                      value:
+                                        description: Static value
+                                        x-kubernetes-preserve-unknown-fields: true
+                                  name:
+                                    type: object
+                                    properties:
+                                      expression:
+                                        description: |-
+                                          A Common Expression Language (CEL) expression that evaluates to a value.
+                                          String expressions are supported (https://pkg.go.dev/github.com/google/cel-go/ext#Strings).
+                                        type: string
+                                      selector:
+                                        description: |-
+                                          Simple path selector to fetch content from the authorization JSON (e.g. 'request.method') or a string template with variables that resolve to patterns (e.g. "Hello, {auth.identity.name}!").
+                                          Any pattern supported by https://pkg.go.dev/github.com/tidwall/gjson can be used.
+                                          The following Authorino custom modifiers are supported: @extract:{sep:" ",pos:0}, @replace{old:"",new:""}, @case:upper|lower, @base64:encode|decode and @strip.
+                                        type: string
+                                      value:
+                                        description: Static value
+                                        x-kubernetes-preserve-unknown-fields: true
+                          when:
+                            description: |-
+                              Conditions for Authorino to enforce this config.
+                              If omitted, the config will be enforced for all requests.
+                              If present, all conditions must match for the config to be enforced; otherwise, the config will be skipped.
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                all:
+                                  description: A list of pattern expressions to be evaluated as a logical AND.
+                                  type: array
+                                  items:
+                                    type: object
+                                    x-kubernetes-preserve-unknown-fields: true
+                                any:
+                                  description: A list of pattern expressions to be evaluated as a logical OR.
+                                  type: array
+                                  items:
+                                    type: object
+                                    x-kubernetes-preserve-unknown-fields: true
+                                operator:
+                                  description: |-
+                                    The binary operator to be applied to the content fetched from the authorization JSON, for comparison with "value".
+                                    Possible values are: "eq" (equal to), "neq" (not equal to), "incl" (includes; for arrays), "excl" (excludes; for arrays), "matches" (regex)
+                                  type: string
+                                  enum:
+                                    - eq
+                                    - neq
+                                    - incl
+                                    - excl
+                                    - matches
+                                patternRef:
+                                  description: Reference to a named set of pattern expressions
+                                  type: string
+                                predicate:
+                                  description: |-
+                                    A Common Expression Language (CEL) expression that evaluates to a boolean.
+                                    String expressions are supported (https://pkg.go.dev/github.com/google/cel-go/ext#Strings).
+                                  type: string
+                                selector:
+                                  description: |-
+                                    Path selector to fetch content from the authorization JSON (e.g. 'request.method').
+                                    Any pattern supported by https://pkg.go.dev/github.com/tidwall/gjson can be used.
+                                    Authorino custom JSON path modifiers are also supported.
+                                  type: string
+                                value:
+                                  description: |-
+                                    The value of reference for the comparison with the content fetched from the authorization JSON.
+                                    If used with the "matches" operator, the value must compile to a valid Golang regex.
+                                  type: string
+                    callbacks:
+                      description: |-
+                        Callback functions.
+                        Authorino sends callbacks at the end of the auth pipeline to the endpoints specified in this config.
+                      type: object
+                      additionalProperties:
+                        type: object
+                        required:
+                          - http
+                        properties:
+                          cache:
+                            description: |-
+                              Caching options for the resolved object returned when applying this config.
+                              Omit it to avoid caching objects for this config.
+                            type: object
+                            required:
+                              - key
+                            properties:
+                              key:
+                                description: |-
+                                  Key used to store the entry in the cache.
+                                  The resolved key must be unique within the scope of this particular config.
+                                type: object
+                                properties:
+                                  expression:
+                                    description: |-
+                                      A Common Expression Language (CEL) expression that evaluates to a value.
+                                      String expressions are supported (https://pkg.go.dev/github.com/google/cel-go/ext#Strings).
+                                    type: string
+                                  selector:
+                                    description: |-
+                                      Simple path selector to fetch content from the authorization JSON (e.g. 'request.method') or a string template with variables that resolve to patterns (e.g. "Hello, {auth.identity.name}!").
+                                      Any pattern supported by https://pkg.go.dev/github.com/tidwall/gjson can be used.
+                                      The following Authorino custom modifiers are supported: @extract:{sep:" ",pos:0}, @replace{old:"",new:""}, @case:upper|lower, @base64:encode|decode and @strip.
+                                    type: string
+                                  value:
+                                    description: Static value
+                                    x-kubernetes-preserve-unknown-fields: true
+                              ttl:
+                                description: Duration (in seconds) of the external data in the cache before pulled again from the source.
+                                type: integer
+                                default: 60
+                          http:
+                            description: Settings of the external HTTP request
+                            type: object
+                            properties:
+                              method:
+                                description: |-
+                                  HTTP verb used in the request to the service. Accepted values: GET (default), POST.
+                                  When the request method is POST, the authorization JSON is passed in the body of the request.
+                                type: string
+                                default: GET
+                                enum:
+                                  - GET
+                                  - POST
+                                  - PUT
+                                  - PATCH
+                                  - DELETE
+                                  - HEAD
+                                  - OPTIONS
+                                  - CONNECT
+                                  - TRACE
+                              body:
+                                description: |-
+                                  Raw body of the HTTP request.
+                                  Supersedes 'bodyParameters'; use either one or the other.
+                                  Use it with method=POST; for GET requests, set parameters as query string in the 'endpoint' (placeholders can be used).
+                                type: object
+                                properties:
+                                  expression:
+                                    description: |-
+                                      A Common Expression Language (CEL) expression that evaluates to a value.
+                                      String expressions are supported (https://pkg.go.dev/github.com/google/cel-go/ext#Strings).
+                                    type: string
+                                  selector:
+                                    description: |-
+                                      Simple path selector to fetch content from the authorization JSON (e.g. 'request.method') or a string template with variables that resolve to patterns (e.g. "Hello, {auth.identity.name}!").
+                                      Any pattern supported by https://pkg.go.dev/github.com/tidwall/gjson can be used.
+                                      The following Authorino custom modifiers are supported: @extract:{sep:" ",pos:0}, @replace{old:"",new:""}, @case:upper|lower, @base64:encode|decode and @strip.
+                                    type: string
+                                  value:
+                                    description: Static value
+                                    x-kubernetes-preserve-unknown-fields: true
+                              headers:
+                                description: Custom headers in the HTTP request.
+                                type: object
+                                additionalProperties:
+                                  type: object
+                                  properties:
+                                    expression:
+                                      description: |-
+                                        A Common Expression Language (CEL) expression that evaluates to a value.
+                                        String expressions are supported (https://pkg.go.dev/github.com/google/cel-go/ext#Strings).
+                                      type: string
+                                    selector:
+                                      description: |-
+                                        Simple path selector to fetch content from the authorization JSON (e.g. 'request.method') or a string template with variables that resolve to patterns (e.g. "Hello, {auth.identity.name}!").
+                                        Any pattern supported by https://pkg.go.dev/github.com/tidwall/gjson can be used.
+                                        The following Authorino custom modifiers are supported: @extract:{sep:" ",pos:0}, @replace{old:"",new:""}, @case:upper|lower, @base64:encode|decode and @strip.
+                                      type: string
+                                    value:
+                                      description: Static value
+                                      x-kubernetes-preserve-unknown-fields: true
+                              urlExpression:
+                                description: |-
+                                  A Common Expression Language (CEL) expression that evaluates to a string endpoint URL of the HTTP service to call.
+                                  String expressions are supported (https://pkg.go.dev/github.com/google/cel-go/ext#Strings).
+                                type: string
+                              bodyParameters:
+                                description: |-
+                                  Custom parameters to encode in the body of the HTTP request.
+                                  Superseded by 'body'; use either one or the other.
+                                  Use it with method=POST; for GET requests, set parameters as query string in the 'endpoint' (placeholders can be used).
+                                type: object
+                                additionalProperties:
+                                  type: object
+                                  properties:
+                                    expression:
+                                      description: |-
+                                        A Common Expression Language (CEL) expression that evaluates to a value.
+                                        String expressions are supported (https://pkg.go.dev/github.com/google/cel-go/ext#Strings).
+                                      type: string
+                                    selector:
+                                      description: |-
+                                        Simple path selector to fetch content from the authorization JSON (e.g. 'request.method') or a string template with variables that resolve to patterns (e.g. "Hello, {auth.identity.name}!").
+                                        Any pattern supported by https://pkg.go.dev/github.com/tidwall/gjson can be used.
+                                        The following Authorino custom modifiers are supported: @extract:{sep:" ",pos:0}, @replace{old:"",new:""}, @case:upper|lower, @base64:encode|decode and @strip.
+                                      type: string
+                                    value:
+                                      description: Static value
+                                      x-kubernetes-preserve-unknown-fields: true
+                              url:
+                                description: |-
+                                  Endpoint URL of the HTTP service.
+                                  The value can include variable placeholders in the format "{selector}", where "selector" is any pattern supported
+                                  by https://pkg.go.dev/github.com/tidwall/gjson and selects value from the authorization JSON.
+                                  E.g. https://ext-auth-server.io/metadata?p={request.path}
+                                type: string
+                              contentType:
+                                description: |-
+                                  Content-Type of the request body. Shapes how 'bodyParameters' are encoded.
+                                  Use it with method=POST; for GET requests, Content-Type is automatically set to 'text/plain'.
+                                type: string
+                                default: application/x-www-form-urlencoded
+                                enum:
+                                  - application/x-www-form-urlencoded
+                                  - application/json
+                              oauth2:
+                                description: Authentication with the HTTP service by OAuth2 Client Credentials grant.
+                                type: object
+                                required:
+                                  - clientId
+                                  - clientSecretRef
+                                  - tokenUrl
+                                properties:
+                                  cache:
+                                    description: |-
+                                      Caches and reuses the token until expired.
+                                      Set it to false to force fetch the token at every authorization request regardless of expiration.
+                                    type: boolean
+                                    default: true
+                                  clientId:
+                                    description: OAuth2 Client ID.
+                                    type: string
+                                  clientSecretRef:
+                                    description: Reference to a Kuberentes Secret key that stores that OAuth2 Client Secret.
+                                    type: object
+                                    required:
+                                      - key
+                                      - name
+                                    properties:
+                                      key:
+                                        description: The key of the secret to select from.  Must be a valid secret key.
+                                        type: string
+                                      name:
+                                        description: The name of the secret in the Authorino's namespace to select from.
+                                        type: string
+                                  extraParams:
+                                    description: Optional extra parameters for the requests to the token URL.
+                                    type: object
+                                    additionalProperties:
+                                      type: string
+                                  scopes:
+                                    description: 'Optional scopes for the client credentials grant, if supported by he OAuth2 server.'
+                                    type: array
+                                    items:
+                                      type: string
+                                  tokenUrl:
+                                    description: Token endpoint URL of the OAuth2 resource server.
+                                    type: string
+                              credentials:
+                                description: |-
+                                  Defines where client credentials will be passed in the request to the service.
+                                  If omitted, it defaults to client credentials passed in the HTTP Authorization header and the "Bearer" prefix expected prepended to the secret value.
+                                type: object
+                                properties:
+                                  authorizationHeader:
+                                    type: object
+                                    properties:
+                                      prefix:
+                                        type: string
+                                  cookie:
+                                    type: object
+                                    required:
+                                      - name
+                                    properties:
+                                      name:
+                                        type: string
+                                  customHeader:
+                                    type: object
+                                    required:
+                                      - name
+                                    properties:
+                                      name:
+                                        type: string
+                                  queryString:
+                                    type: object
+                                    required:
+                                      - name
+                                    properties:
+                                      name:
+                                        type: string
+                              sharedSecretRef:
+                                description: |-
+                                  Reference to a Secret key whose value will be passed by Authorino in the request.
+                                  The HTTP service can use the shared secret to authenticate the origin of the request.
+                                  Ignored if used together with oauth2.
+                                type: object
+                                required:
+                                  - key
+                                  - name
+                                properties:
+                                  key:
+                                    description: The key of the secret to select from.  Must be a valid secret key.
+                                    type: string
+                                  name:
+                                    description: The name of the secret in the Authorino's namespace to select from.
+                                    type: string
+                          metrics:
+                            description: Whether this config should generate individual observability metrics
+                            type: boolean
+                            default: false
+                          priority:
+                            description: |-
+                              Priority group of the config.
+                              All configs in the same priority group are evaluated concurrently; consecutive priority groups are evaluated sequentially.
+                            type: integer
+                            default: 0
+                          when:
+                            description: |-
+                              Conditions for Authorino to enforce this config.
+                              If omitted, the config will be enforced for all requests.
+                              If present, all conditions must match for the config to be enforced; otherwise, the config will be skipped.
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                all:
+                                  description: A list of pattern expressions to be evaluated as a logical AND.
+                                  type: array
+                                  items:
+                                    type: object
+                                    x-kubernetes-preserve-unknown-fields: true
+                                any:
+                                  description: A list of pattern expressions to be evaluated as a logical OR.
+                                  type: array
+                                  items:
+                                    type: object
+                                    x-kubernetes-preserve-unknown-fields: true
+                                operator:
+                                  description: |-
+                                    The binary operator to be applied to the content fetched from the authorization JSON, for comparison with "value".
+                                    Possible values are: "eq" (equal to), "neq" (not equal to), "incl" (includes; for arrays), "excl" (excludes; for arrays), "matches" (regex)
+                                  type: string
+                                  enum:
+                                    - eq
+                                    - neq
+                                    - incl
+                                    - excl
+                                    - matches
+                                patternRef:
+                                  description: Reference to a named set of pattern expressions
+                                  type: string
+                                predicate:
+                                  description: |-
+                                    A Common Expression Language (CEL) expression that evaluates to a boolean.
+                                    String expressions are supported (https://pkg.go.dev/github.com/google/cel-go/ext#Strings).
+                                  type: string
+                                selector:
+                                  description: |-
+                                    Path selector to fetch content from the authorization JSON (e.g. 'request.method').
+                                    Any pattern supported by https://pkg.go.dev/github.com/tidwall/gjson can be used.
+                                    Authorino custom JSON path modifiers are also supported.
+                                  type: string
+                                value:
+                                  description: |-
+                                    The value of reference for the comparison with the content fetched from the authorization JSON.
+                                    If used with the "matches" operator, the value must compile to a valid Golang regex.
+                                  type: string
+                    metadata:
+                      description: |-
+                        Metadata sources.
+                        Authorino fetches auth metadata as JSON from sources specified in this config.
+                      type: object
+                      additionalProperties:
+                        type: object
+                        properties:
+                          cache:
+                            description: |-
+                              Caching options for the resolved object returned when applying this config.
+                              Omit it to avoid caching objects for this config.
+                            type: object
+                            required:
+                              - key
+                            properties:
+                              key:
+                                description: |-
+                                  Key used to store the entry in the cache.
+                                  The resolved key must be unique within the scope of this particular config.
+                                type: object
+                                properties:
+                                  expression:
+                                    description: |-
+                                      A Common Expression Language (CEL) expression that evaluates to a value.
+                                      String expressions are supported (https://pkg.go.dev/github.com/google/cel-go/ext#Strings).
+                                    type: string
+                                  selector:
+                                    description: |-
+                                      Simple path selector to fetch content from the authorization JSON (e.g. 'request.method') or a string template with variables that resolve to patterns (e.g. "Hello, {auth.identity.name}!").
+                                      Any pattern supported by https://pkg.go.dev/github.com/tidwall/gjson can be used.
+                                      The following Authorino custom modifiers are supported: @extract:{sep:" ",pos:0}, @replace{old:"",new:""}, @case:upper|lower, @base64:encode|decode and @strip.
+                                    type: string
+                                  value:
+                                    description: Static value
+                                    x-kubernetes-preserve-unknown-fields: true
+                              ttl:
+                                description: Duration (in seconds) of the external data in the cache before pulled again from the source.
+                                type: integer
+                                default: 60
+                          http:
+                            description: External source of auth metadata via HTTP request
+                            type: object
+                            properties:
+                              method:
+                                description: |-
+                                  HTTP verb used in the request to the service. Accepted values: GET (default), POST.
+                                  When the request method is POST, the authorization JSON is passed in the body of the request.
+                                type: string
+                                default: GET
+                                enum:
+                                  - GET
+                                  - POST
+                                  - PUT
+                                  - PATCH
+                                  - DELETE
+                                  - HEAD
+                                  - OPTIONS
+                                  - CONNECT
+                                  - TRACE
+                              body:
+                                description: |-
+                                  Raw body of the HTTP request.
+                                  Supersedes 'bodyParameters'; use either one or the other.
+                                  Use it with method=POST; for GET requests, set parameters as query string in the 'endpoint' (placeholders can be used).
+                                type: object
+                                properties:
+                                  expression:
+                                    description: |-
+                                      A Common Expression Language (CEL) expression that evaluates to a value.
+                                      String expressions are supported (https://pkg.go.dev/github.com/google/cel-go/ext#Strings).
+                                    type: string
+                                  selector:
+                                    description: |-
+                                      Simple path selector to fetch content from the authorization JSON (e.g. 'request.method') or a string template with variables that resolve to patterns (e.g. "Hello, {auth.identity.name}!").
+                                      Any pattern supported by https://pkg.go.dev/github.com/tidwall/gjson can be used.
+                                      The following Authorino custom modifiers are supported: @extract:{sep:" ",pos:0}, @replace{old:"",new:""}, @case:upper|lower, @base64:encode|decode and @strip.
+                                    type: string
+                                  value:
+                                    description: Static value
+                                    x-kubernetes-preserve-unknown-fields: true
+                              headers:
+                                description: Custom headers in the HTTP request.
+                                type: object
+                                additionalProperties:
+                                  type: object
+                                  properties:
+                                    expression:
+                                      description: |-
+                                        A Common Expression Language (CEL) expression that evaluates to a value.
+                                        String expressions are supported (https://pkg.go.dev/github.com/google/cel-go/ext#Strings).
+                                      type: string
+                                    selector:
+                                      description: |-
+                                        Simple path selector to fetch content from the authorization JSON (e.g. 'request.method') or a string template with variables that resolve to patterns (e.g. "Hello, {auth.identity.name}!").
+                                        Any pattern supported by https://pkg.go.dev/github.com/tidwall/gjson can be used.
+                                        The following Authorino custom modifiers are supported: @extract:{sep:" ",pos:0}, @replace{old:"",new:""}, @case:upper|lower, @base64:encode|decode and @strip.
+                                      type: string
+                                    value:
+                                      description: Static value
+                                      x-kubernetes-preserve-unknown-fields: true
+                              urlExpression:
+                                description: |-
+                                  A Common Expression Language (CEL) expression that evaluates to a string endpoint URL of the HTTP service to call.
+                                  String expressions are supported (https://pkg.go.dev/github.com/google/cel-go/ext#Strings).
+                                type: string
+                              bodyParameters:
+                                description: |-
+                                  Custom parameters to encode in the body of the HTTP request.
+                                  Superseded by 'body'; use either one or the other.
+                                  Use it with method=POST; for GET requests, set parameters as query string in the 'endpoint' (placeholders can be used).
+                                type: object
+                                additionalProperties:
+                                  type: object
+                                  properties:
+                                    expression:
+                                      description: |-
+                                        A Common Expression Language (CEL) expression that evaluates to a value.
+                                        String expressions are supported (https://pkg.go.dev/github.com/google/cel-go/ext#Strings).
+                                      type: string
+                                    selector:
+                                      description: |-
+                                        Simple path selector to fetch content from the authorization JSON (e.g. 'request.method') or a string template with variables that resolve to patterns (e.g. "Hello, {auth.identity.name}!").
+                                        Any pattern supported by https://pkg.go.dev/github.com/tidwall/gjson can be used.
+                                        The following Authorino custom modifiers are supported: @extract:{sep:" ",pos:0}, @replace{old:"",new:""}, @case:upper|lower, @base64:encode|decode and @strip.
+                                      type: string
+                                    value:
+                                      description: Static value
+                                      x-kubernetes-preserve-unknown-fields: true
+                              url:
+                                description: |-
+                                  Endpoint URL of the HTTP service.
+                                  The value can include variable placeholders in the format "{selector}", where "selector" is any pattern supported
+                                  by https://pkg.go.dev/github.com/tidwall/gjson and selects value from the authorization JSON.
+                                  E.g. https://ext-auth-server.io/metadata?p={request.path}
+                                type: string
+                              contentType:
+                                description: |-
+                                  Content-Type of the request body. Shapes how 'bodyParameters' are encoded.
+                                  Use it with method=POST; for GET requests, Content-Type is automatically set to 'text/plain'.
+                                type: string
+                                default: application/x-www-form-urlencoded
+                                enum:
+                                  - application/x-www-form-urlencoded
+                                  - application/json
+                              oauth2:
+                                description: Authentication with the HTTP service by OAuth2 Client Credentials grant.
+                                type: object
+                                required:
+                                  - clientId
+                                  - clientSecretRef
+                                  - tokenUrl
+                                properties:
+                                  cache:
+                                    description: |-
+                                      Caches and reuses the token until expired.
+                                      Set it to false to force fetch the token at every authorization request regardless of expiration.
+                                    type: boolean
+                                    default: true
+                                  clientId:
+                                    description: OAuth2 Client ID.
+                                    type: string
+                                  clientSecretRef:
+                                    description: Reference to a Kuberentes Secret key that stores that OAuth2 Client Secret.
+                                    type: object
+                                    required:
+                                      - key
+                                      - name
+                                    properties:
+                                      key:
+                                        description: The key of the secret to select from.  Must be a valid secret key.
+                                        type: string
+                                      name:
+                                        description: The name of the secret in the Authorino's namespace to select from.
+                                        type: string
+                                  extraParams:
+                                    description: Optional extra parameters for the requests to the token URL.
+                                    type: object
+                                    additionalProperties:
+                                      type: string
+                                  scopes:
+                                    description: 'Optional scopes for the client credentials grant, if supported by he OAuth2 server.'
+                                    type: array
+                                    items:
+                                      type: string
+                                  tokenUrl:
+                                    description: Token endpoint URL of the OAuth2 resource server.
+                                    type: string
+                              credentials:
+                                description: |-
+                                  Defines where client credentials will be passed in the request to the service.
+                                  If omitted, it defaults to client credentials passed in the HTTP Authorization header and the "Bearer" prefix expected prepended to the secret value.
+                                type: object
+                                properties:
+                                  authorizationHeader:
+                                    type: object
+                                    properties:
+                                      prefix:
+                                        type: string
+                                  cookie:
+                                    type: object
+                                    required:
+                                      - name
+                                    properties:
+                                      name:
+                                        type: string
+                                  customHeader:
+                                    type: object
+                                    required:
+                                      - name
+                                    properties:
+                                      name:
+                                        type: string
+                                  queryString:
+                                    type: object
+                                    required:
+                                      - name
+                                    properties:
+                                      name:
+                                        type: string
+                              sharedSecretRef:
+                                description: |-
+                                  Reference to a Secret key whose value will be passed by Authorino in the request.
+                                  The HTTP service can use the shared secret to authenticate the origin of the request.
+                                  Ignored if used together with oauth2.
+                                type: object
+                                required:
+                                  - key
+                                  - name
+                                properties:
+                                  key:
+                                    description: The key of the secret to select from.  Must be a valid secret key.
+                                    type: string
+                                  name:
+                                    description: The name of the secret in the Authorino's namespace to select from.
+                                    type: string
+                          metrics:
+                            description: Whether this config should generate individual observability metrics
+                            type: boolean
+                            default: false
+                          priority:
+                            description: |-
+                              Priority group of the config.
+                              All configs in the same priority group are evaluated concurrently; consecutive priority groups are evaluated sequentially.
+                            type: integer
+                            default: 0
+                          uma:
+                            description: User-Managed Access (UMA) source of resource data.
+                            type: object
+                            required:
+                              - credentialsRef
+                              - endpoint
+                            properties:
+                              credentialsRef:
+                                description: 'Reference to a Kubernetes secret in the same namespace, that stores client credentials to the resource registration API of the UMA server.'
+                                type: object
+                                properties:
+                                  name:
+                                    description: |-
+                                      Name of the referent.
+                                      This field is effectively required, but due to backwards compatibility is
+                                      allowed to be empty. Instances of this type with an empty value here are
+                                      almost certainly wrong.
+                                      More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                                    type: string
+                                    default: ''
+                                x-kubernetes-map-type: atomic
+                              endpoint:
+                                description: |-
+                                  The endpoint of the UMA server.
+                                  The value must coincide with the "issuer" claim of the UMA config discovered from the well-known uma configuration endpoint.
+                                type: string
+                          userInfo:
+                            description: OpendID Connect UserInfo linked to an OIDC authentication config specified in this same AuthConfig.
+                            type: object
+                            properties:
+                              identitySource:
+                                description: |-
+                                  Name of an OIDC JWT authentication rule whose obtained configuration includes an "userinfo_endpoint" claim.
+                                  One of: identitySource, userInfoUrl
+                                type: string
+                              userInfoUrl:
+                                description: |-
+                                  The URL of the UserInfo endpoint.
+                                  Use it for non-OIDC JWT authentication, where the UserInfo URL is known beforehand.
+                                  One of: identitySource, userInfoUrl
+                                type: string
+                            x-kubernetes-validations:
+                              - rule: '!(has(self.identitySource) && self.identitySource != '''' && has(self.userInfoUrl) && self.userInfoUrl != '''')'
+                                message: 'Use one of: identitySource, userInfoUrl'
+                          when:
+                            description: |-
+                              Conditions for Authorino to enforce this config.
+                              If omitted, the config will be enforced for all requests.
+                              If present, all conditions must match for the config to be enforced; otherwise, the config will be skipped.
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                all:
+                                  description: A list of pattern expressions to be evaluated as a logical AND.
+                                  type: array
+                                  items:
+                                    type: object
+                                    x-kubernetes-preserve-unknown-fields: true
+                                any:
+                                  description: A list of pattern expressions to be evaluated as a logical OR.
+                                  type: array
+                                  items:
+                                    type: object
+                                    x-kubernetes-preserve-unknown-fields: true
+                                operator:
+                                  description: |-
+                                    The binary operator to be applied to the content fetched from the authorization JSON, for comparison with "value".
+                                    Possible values are: "eq" (equal to), "neq" (not equal to), "incl" (includes; for arrays), "excl" (excludes; for arrays), "matches" (regex)
+                                  type: string
+                                  enum:
+                                    - eq
+                                    - neq
+                                    - incl
+                                    - excl
+                                    - matches
+                                patternRef:
+                                  description: Reference to a named set of pattern expressions
+                                  type: string
+                                predicate:
+                                  description: |-
+                                    A Common Expression Language (CEL) expression that evaluates to a boolean.
+                                    String expressions are supported (https://pkg.go.dev/github.com/google/cel-go/ext#Strings).
+                                  type: string
+                                selector:
+                                  description: |-
+                                    Path selector to fetch content from the authorization JSON (e.g. 'request.method').
+                                    Any pattern supported by https://pkg.go.dev/github.com/tidwall/gjson can be used.
+                                    Authorino custom JSON path modifiers are also supported.
+                                  type: string
+                                value:
+                                  description: |-
+                                    The value of reference for the comparison with the content fetched from the authorization JSON.
+                                    If used with the "matches" operator, the value must compile to a valid Golang regex.
+                                  type: string
+                    response:
+                      description: |-
+                        Response items.
+                        Authorino builds custom responses to the client of the auth request.
+                      type: object
+                      properties:
+                        success:
+                          description: |-
+                            Response items to be included in the auth response when the request is authenticated and authorized.
+                            For integration of Authorino via proxy, the proxy must use these settings to propagate dynamic metadata and/or inject data in the request.
+                          type: object
+                          properties:
+                            filters:
+                              description: Custom data made available to other filters managed by Kuadrant (i.e. Rate Limit)
+                              type: object
+                              additionalProperties:
+                                type: object
+                                properties:
+                                  cache:
+                                    description: |-
+                                      Caching options for the resolved object returned when applying this config.
+                                      Omit it to avoid caching objects for this config.
+                                    type: object
+                                    required:
+                                      - key
+                                    properties:
+                                      key:
+                                        description: |-
+                                          Key used to store the entry in the cache.
+                                          The resolved key must be unique within the scope of this particular config.
+                                        type: object
+                                        properties:
+                                          expression:
+                                            description: |-
+                                              A Common Expression Language (CEL) expression that evaluates to a value.
+                                              String expressions are supported (https://pkg.go.dev/github.com/google/cel-go/ext#Strings).
+                                            type: string
+                                          selector:
+                                            description: |-
+                                              Simple path selector to fetch content from the authorization JSON (e.g. 'request.method') or a string template with variables that resolve to patterns (e.g. "Hello, {auth.identity.name}!").
+                                              Any pattern supported by https://pkg.go.dev/github.com/tidwall/gjson can be used.
+                                              The following Authorino custom modifiers are supported: @extract:{sep:" ",pos:0}, @replace{old:"",new:""}, @case:upper|lower, @base64:encode|decode and @strip.
+                                            type: string
+                                          value:
+                                            description: Static value
+                                            x-kubernetes-preserve-unknown-fields: true
+                                      ttl:
+                                        description: Duration (in seconds) of the external data in the cache before pulled again from the source.
+                                        type: integer
+                                        default: 60
+                                  json:
+                                    description: |-
+                                      JSON object
+                                      Specify it as the list of properties of the object, whose values can combine static values and values selected from the authorization JSON.
+                                    type: object
+                                    required:
+                                      - properties
+                                    properties:
+                                      properties:
+                                        type: object
+                                        additionalProperties:
+                                          type: object
+                                          properties:
+                                            expression:
+                                              description: |-
+                                                A Common Expression Language (CEL) expression that evaluates to a value.
+                                                String expressions are supported (https://pkg.go.dev/github.com/google/cel-go/ext#Strings).
+                                              type: string
+                                            selector:
+                                              description: |-
+                                                Simple path selector to fetch content from the authorization JSON (e.g. 'request.method') or a string template with variables that resolve to patterns (e.g. "Hello, {auth.identity.name}!").
+                                                Any pattern supported by https://pkg.go.dev/github.com/tidwall/gjson can be used.
+                                                The following Authorino custom modifiers are supported: @extract:{sep:" ",pos:0}, @replace{old:"",new:""}, @case:upper|lower, @base64:encode|decode and @strip.
+                                              type: string
+                                            value:
+                                              description: Static value
+                                              x-kubernetes-preserve-unknown-fields: true
+                                  key:
+                                    description: |-
+                                      The key used to add the custom response item (name of the HTTP header or root property of the Dynamic Metadata object).
+                                      If omitted, it will be set to the name of the response config.
+                                    type: string
+                                  metrics:
+                                    description: Whether this config should generate individual observability metrics
+                                    type: boolean
+                                    default: false
+                                  plain:
+                                    description: Plain text content
+                                    type: object
+                                    properties:
+                                      expression:
+                                        description: |-
+                                          A Common Expression Language (CEL) expression that evaluates to a value.
+                                          String expressions are supported (https://pkg.go.dev/github.com/google/cel-go/ext#Strings).
+                                        type: string
+                                      selector:
+                                        description: |-
+                                          Simple path selector to fetch content from the authorization JSON (e.g. 'request.method') or a string template with variables that resolve to patterns (e.g. "Hello, {auth.identity.name}!").
+                                          Any pattern supported by https://pkg.go.dev/github.com/tidwall/gjson can be used.
+                                          The following Authorino custom modifiers are supported: @extract:{sep:" ",pos:0}, @replace{old:"",new:""}, @case:upper|lower, @base64:encode|decode and @strip.
+                                        type: string
+                                      value:
+                                        description: Static value
+                                        x-kubernetes-preserve-unknown-fields: true
+                                  priority:
+                                    description: |-
+                                      Priority group of the config.
+                                      All configs in the same priority group are evaluated concurrently; consecutive priority groups are evaluated sequentially.
+                                    type: integer
+                                    default: 0
+                                  when:
+                                    description: |-
+                                      Conditions for Authorino to enforce this config.
+                                      If omitted, the config will be enforced for all requests.
+                                      If present, all conditions must match for the config to be enforced; otherwise, the config will be skipped.
+                                    type: array
+                                    items:
+                                      type: object
+                                      properties:
+                                        all:
+                                          description: A list of pattern expressions to be evaluated as a logical AND.
+                                          type: array
+                                          items:
+                                            type: object
+                                            x-kubernetes-preserve-unknown-fields: true
+                                        any:
+                                          description: A list of pattern expressions to be evaluated as a logical OR.
+                                          type: array
+                                          items:
+                                            type: object
+                                            x-kubernetes-preserve-unknown-fields: true
+                                        operator:
+                                          description: |-
+                                            The binary operator to be applied to the content fetched from the authorization JSON, for comparison with "value".
+                                            Possible values are: "eq" (equal to), "neq" (not equal to), "incl" (includes; for arrays), "excl" (excludes; for arrays), "matches" (regex)
+                                          type: string
+                                          enum:
+                                            - eq
+                                            - neq
+                                            - incl
+                                            - excl
+                                            - matches
+                                        patternRef:
+                                          description: Reference to a named set of pattern expressions
+                                          type: string
+                                        predicate:
+                                          description: |-
+                                            A Common Expression Language (CEL) expression that evaluates to a boolean.
+                                            String expressions are supported (https://pkg.go.dev/github.com/google/cel-go/ext#Strings).
+                                          type: string
+                                        selector:
+                                          description: |-
+                                            Path selector to fetch content from the authorization JSON (e.g. 'request.method').
+                                            Any pattern supported by https://pkg.go.dev/github.com/tidwall/gjson can be used.
+                                            Authorino custom JSON path modifiers are also supported.
+                                          type: string
+                                        value:
+                                          description: |-
+                                            The value of reference for the comparison with the content fetched from the authorization JSON.
+                                            If used with the "matches" operator, the value must compile to a valid Golang regex.
+                                          type: string
+                                  wristband:
+                                    description: Authorino Festival Wristband token
+                                    type: object
+                                    required:
+                                      - issuer
+                                      - signingKeyRefs
+                                    properties:
+                                      customClaims:
+                                        description: 'Any claims to be added to the wristband token apart from the standard JWT claims (iss, iat, exp) added by default.'
+                                        type: object
+                                        additionalProperties:
+                                          type: object
+                                          properties:
+                                            expression:
+                                              description: |-
+                                                A Common Expression Language (CEL) expression that evaluates to a value.
+                                                String expressions are supported (https://pkg.go.dev/github.com/google/cel-go/ext#Strings).
+                                              type: string
+                                            selector:
+                                              description: |-
+                                                Simple path selector to fetch content from the authorization JSON (e.g. 'request.method') or a string template with variables that resolve to patterns (e.g. "Hello, {auth.identity.name}!").
+                                                Any pattern supported by https://pkg.go.dev/github.com/tidwall/gjson can be used.
+                                                The following Authorino custom modifiers are supported: @extract:{sep:" ",pos:0}, @replace{old:"",new:""}, @case:upper|lower, @base64:encode|decode and @strip.
+                                              type: string
+                                            value:
+                                              description: Static value
+                                              x-kubernetes-preserve-unknown-fields: true
+                                      issuer:
+                                        description: 'The endpoint to the Authorino service that issues the wristband (format: <scheme>://<host>:<port>/<realm>, where <realm> = <namespace>/<authorino-auth-config-resource-name/wristband-config-name)'
+                                        type: string
+                                      signingKeyRefs:
+                                        description: |-
+                                          Reference by name to Kubernetes secrets and corresponding signing algorithms.
+                                          The secrets must contain a `key.pem` entry whose value is the signing key formatted as PEM.
+                                        type: array
+                                        items:
+                                          type: object
+                                          required:
+                                            - algorithm
+                                            - name
+                                          properties:
+                                            algorithm:
+                                              description: Algorithm to sign the wristband token using the signing key provided
+                                              type: string
+                                              enum:
+                                                - ES256
+                                                - ES384
+                                                - ES512
+                                                - RS256
+                                                - RS384
+                                                - RS512
+                                            name:
+                                              description: |-
+                                                Name of the signing key.
+                                                The value is used to reference the Kubernetes secret that stores the key and in the `kid` claim of the wristband token header.
+                                              type: string
+                                      tokenDuration:
+                                        description: 'Time span of the wristband token, in seconds.'
+                                        type: integer
+                                        format: int64
+                            headers:
+                              description: Custom headers to inject in the request.
+                              type: object
+                              additionalProperties:
+                                type: object
+                                properties:
+                                  cache:
+                                    description: |-
+                                      Caching options for the resolved object returned when applying this config.
+                                      Omit it to avoid caching objects for this config.
+                                    type: object
+                                    required:
+                                      - key
+                                    properties:
+                                      key:
+                                        description: |-
+                                          Key used to store the entry in the cache.
+                                          The resolved key must be unique within the scope of this particular config.
+                                        type: object
+                                        properties:
+                                          expression:
+                                            description: |-
+                                              A Common Expression Language (CEL) expression that evaluates to a value.
+                                              String expressions are supported (https://pkg.go.dev/github.com/google/cel-go/ext#Strings).
+                                            type: string
+                                          selector:
+                                            description: |-
+                                              Simple path selector to fetch content from the authorization JSON (e.g. 'request.method') or a string template with variables that resolve to patterns (e.g. "Hello, {auth.identity.name}!").
+                                              Any pattern supported by https://pkg.go.dev/github.com/tidwall/gjson can be used.
+                                              The following Authorino custom modifiers are supported: @extract:{sep:" ",pos:0}, @replace{old:"",new:""}, @case:upper|lower, @base64:encode|decode and @strip.
+                                            type: string
+                                          value:
+                                            description: Static value
+                                            x-kubernetes-preserve-unknown-fields: true
+                                      ttl:
+                                        description: Duration (in seconds) of the external data in the cache before pulled again from the source.
+                                        type: integer
+                                        default: 60
+                                  json:
+                                    description: |-
+                                      JSON object
+                                      Specify it as the list of properties of the object, whose values can combine static values and values selected from the authorization JSON.
+                                    type: object
+                                    required:
+                                      - properties
+                                    properties:
+                                      properties:
+                                        type: object
+                                        additionalProperties:
+                                          type: object
+                                          properties:
+                                            expression:
+                                              description: |-
+                                                A Common Expression Language (CEL) expression that evaluates to a value.
+                                                String expressions are supported (https://pkg.go.dev/github.com/google/cel-go/ext#Strings).
+                                              type: string
+                                            selector:
+                                              description: |-
+                                                Simple path selector to fetch content from the authorization JSON (e.g. 'request.method') or a string template with variables that resolve to patterns (e.g. "Hello, {auth.identity.name}!").
+                                                Any pattern supported by https://pkg.go.dev/github.com/tidwall/gjson can be used.
+                                                The following Authorino custom modifiers are supported: @extract:{sep:" ",pos:0}, @replace{old:"",new:""}, @case:upper|lower, @base64:encode|decode and @strip.
+                                              type: string
+                                            value:
+                                              description: Static value
+                                              x-kubernetes-preserve-unknown-fields: true
+                                  key:
+                                    description: |-
+                                      The key used to add the custom response item (name of the HTTP header or root property of the Dynamic Metadata object).
+                                      If omitted, it will be set to the name of the response config.
+                                    type: string
+                                  metrics:
+                                    description: Whether this config should generate individual observability metrics
+                                    type: boolean
+                                    default: false
+                                  plain:
+                                    description: Plain text content
+                                    type: object
+                                    properties:
+                                      expression:
+                                        description: |-
+                                          A Common Expression Language (CEL) expression that evaluates to a value.
+                                          String expressions are supported (https://pkg.go.dev/github.com/google/cel-go/ext#Strings).
+                                        type: string
+                                      selector:
+                                        description: |-
+                                          Simple path selector to fetch content from the authorization JSON (e.g. 'request.method') or a string template with variables that resolve to patterns (e.g. "Hello, {auth.identity.name}!").
+                                          Any pattern supported by https://pkg.go.dev/github.com/tidwall/gjson can be used.
+                                          The following Authorino custom modifiers are supported: @extract:{sep:" ",pos:0}, @replace{old:"",new:""}, @case:upper|lower, @base64:encode|decode and @strip.
+                                        type: string
+                                      value:
+                                        description: Static value
+                                        x-kubernetes-preserve-unknown-fields: true
+                                  priority:
+                                    description: |-
+                                      Priority group of the config.
+                                      All configs in the same priority group are evaluated concurrently; consecutive priority groups are evaluated sequentially.
+                                    type: integer
+                                    default: 0
+                                  when:
+                                    description: |-
+                                      Conditions for Authorino to enforce this config.
+                                      If omitted, the config will be enforced for all requests.
+                                      If present, all conditions must match for the config to be enforced; otherwise, the config will be skipped.
+                                    type: array
+                                    items:
+                                      type: object
+                                      properties:
+                                        all:
+                                          description: A list of pattern expressions to be evaluated as a logical AND.
+                                          type: array
+                                          items:
+                                            type: object
+                                            x-kubernetes-preserve-unknown-fields: true
+                                        any:
+                                          description: A list of pattern expressions to be evaluated as a logical OR.
+                                          type: array
+                                          items:
+                                            type: object
+                                            x-kubernetes-preserve-unknown-fields: true
+                                        operator:
+                                          description: |-
+                                            The binary operator to be applied to the content fetched from the authorization JSON, for comparison with "value".
+                                            Possible values are: "eq" (equal to), "neq" (not equal to), "incl" (includes; for arrays), "excl" (excludes; for arrays), "matches" (regex)
+                                          type: string
+                                          enum:
+                                            - eq
+                                            - neq
+                                            - incl
+                                            - excl
+                                            - matches
+                                        patternRef:
+                                          description: Reference to a named set of pattern expressions
+                                          type: string
+                                        predicate:
+                                          description: |-
+                                            A Common Expression Language (CEL) expression that evaluates to a boolean.
+                                            String expressions are supported (https://pkg.go.dev/github.com/google/cel-go/ext#Strings).
+                                          type: string
+                                        selector:
+                                          description: |-
+                                            Path selector to fetch content from the authorization JSON (e.g. 'request.method').
+                                            Any pattern supported by https://pkg.go.dev/github.com/tidwall/gjson can be used.
+                                            Authorino custom JSON path modifiers are also supported.
+                                          type: string
+                                        value:
+                                          description: |-
+                                            The value of reference for the comparison with the content fetched from the authorization JSON.
+                                            If used with the "matches" operator, the value must compile to a valid Golang regex.
+                                          type: string
+                                  wristband:
+                                    description: Authorino Festival Wristband token
+                                    type: object
+                                    required:
+                                      - issuer
+                                      - signingKeyRefs
+                                    properties:
+                                      customClaims:
+                                        description: 'Any claims to be added to the wristband token apart from the standard JWT claims (iss, iat, exp) added by default.'
+                                        type: object
+                                        additionalProperties:
+                                          type: object
+                                          properties:
+                                            expression:
+                                              description: |-
+                                                A Common Expression Language (CEL) expression that evaluates to a value.
+                                                String expressions are supported (https://pkg.go.dev/github.com/google/cel-go/ext#Strings).
+                                              type: string
+                                            selector:
+                                              description: |-
+                                                Simple path selector to fetch content from the authorization JSON (e.g. 'request.method') or a string template with variables that resolve to patterns (e.g. "Hello, {auth.identity.name}!").
+                                                Any pattern supported by https://pkg.go.dev/github.com/tidwall/gjson can be used.
+                                                The following Authorino custom modifiers are supported: @extract:{sep:" ",pos:0}, @replace{old:"",new:""}, @case:upper|lower, @base64:encode|decode and @strip.
+                                              type: string
+                                            value:
+                                              description: Static value
+                                              x-kubernetes-preserve-unknown-fields: true
+                                      issuer:
+                                        description: 'The endpoint to the Authorino service that issues the wristband (format: <scheme>://<host>:<port>/<realm>, where <realm> = <namespace>/<authorino-auth-config-resource-name/wristband-config-name)'
+                                        type: string
+                                      signingKeyRefs:
+                                        description: |-
+                                          Reference by name to Kubernetes secrets and corresponding signing algorithms.
+                                          The secrets must contain a `key.pem` entry whose value is the signing key formatted as PEM.
+                                        type: array
+                                        items:
+                                          type: object
+                                          required:
+                                            - algorithm
+                                            - name
+                                          properties:
+                                            algorithm:
+                                              description: Algorithm to sign the wristband token using the signing key provided
+                                              type: string
+                                              enum:
+                                                - ES256
+                                                - ES384
+                                                - ES512
+                                                - RS256
+                                                - RS384
+                                                - RS512
+                                            name:
+                                              description: |-
+                                                Name of the signing key.
+                                                The value is used to reference the Kubernetes secret that stores the key and in the `kid` claim of the wristband token header.
+                                              type: string
+                                      tokenDuration:
+                                        description: 'Time span of the wristband token, in seconds.'
+                                        type: integer
+                                        format: int64
+                        unauthenticated:
+                          description: |-
+                            Customizations on the denial status attributes when the request is unauthenticated.
+                            For integration of Authorino via proxy, the proxy must honour the response status attributes specified in this config.
+                            Default: 401 Unauthorized
+                          type: object
+                          properties:
+                            body:
+                              description: HTTP response body to override the default denial body.
+                              type: object
+                              properties:
+                                expression:
+                                  description: |-
+                                    A Common Expression Language (CEL) expression that evaluates to a value.
+                                    String expressions are supported (https://pkg.go.dev/github.com/google/cel-go/ext#Strings).
+                                  type: string
+                                selector:
+                                  description: |-
+                                    Simple path selector to fetch content from the authorization JSON (e.g. 'request.method') or a string template with variables that resolve to patterns (e.g. "Hello, {auth.identity.name}!").
+                                    Any pattern supported by https://pkg.go.dev/github.com/tidwall/gjson can be used.
+                                    The following Authorino custom modifiers are supported: @extract:{sep:" ",pos:0}, @replace{old:"",new:""}, @case:upper|lower, @base64:encode|decode and @strip.
+                                  type: string
+                                value:
+                                  description: Static value
+                                  x-kubernetes-preserve-unknown-fields: true
+                            code:
+                              description: HTTP status code to override the default denial status code.
+                              type: integer
+                              format: int64
+                              maximum: 599
+                              minimum: 300
+                            headers:
+                              description: HTTP response headers to override the default denial headers.
+                              type: object
+                              additionalProperties:
+                                type: object
+                                properties:
+                                  expression:
+                                    description: |-
+                                      A Common Expression Language (CEL) expression that evaluates to a value.
+                                      String expressions are supported (https://pkg.go.dev/github.com/google/cel-go/ext#Strings).
+                                    type: string
+                                  selector:
+                                    description: |-
+                                      Simple path selector to fetch content from the authorization JSON (e.g. 'request.method') or a string template with variables that resolve to patterns (e.g. "Hello, {auth.identity.name}!").
+                                      Any pattern supported by https://pkg.go.dev/github.com/tidwall/gjson can be used.
+                                      The following Authorino custom modifiers are supported: @extract:{sep:" ",pos:0}, @replace{old:"",new:""}, @case:upper|lower, @base64:encode|decode and @strip.
+                                    type: string
+                                  value:
+                                    description: Static value
+                                    x-kubernetes-preserve-unknown-fields: true
+                            message:
+                              description: HTTP message to override the default denial message.
+                              type: object
+                              properties:
+                                expression:
+                                  description: |-
+                                    A Common Expression Language (CEL) expression that evaluates to a value.
+                                    String expressions are supported (https://pkg.go.dev/github.com/google/cel-go/ext#Strings).
+                                  type: string
+                                selector:
+                                  description: |-
+                                    Simple path selector to fetch content from the authorization JSON (e.g. 'request.method') or a string template with variables that resolve to patterns (e.g. "Hello, {auth.identity.name}!").
+                                    Any pattern supported by https://pkg.go.dev/github.com/tidwall/gjson can be used.
+                                    The following Authorino custom modifiers are supported: @extract:{sep:" ",pos:0}, @replace{old:"",new:""}, @case:upper|lower, @base64:encode|decode and @strip.
+                                  type: string
+                                value:
+                                  description: Static value
+                                  x-kubernetes-preserve-unknown-fields: true
+                        unauthorized:
+                          description: |-
+                            Customizations on the denial status attributes when the request is unauthorized.
+                            For integration of Authorino via proxy, the proxy must honour the response status attributes specified in this config.
+                            Default: 403 Forbidden
+                          type: object
+                          properties:
+                            body:
+                              description: HTTP response body to override the default denial body.
+                              type: object
+                              properties:
+                                expression:
+                                  description: |-
+                                    A Common Expression Language (CEL) expression that evaluates to a value.
+                                    String expressions are supported (https://pkg.go.dev/github.com/google/cel-go/ext#Strings).
+                                  type: string
+                                selector:
+                                  description: |-
+                                    Simple path selector to fetch content from the authorization JSON (e.g. 'request.method') or a string template with variables that resolve to patterns (e.g. "Hello, {auth.identity.name}!").
+                                    Any pattern supported by https://pkg.go.dev/github.com/tidwall/gjson can be used.
+                                    The following Authorino custom modifiers are supported: @extract:{sep:" ",pos:0}, @replace{old:"",new:""}, @case:upper|lower, @base64:encode|decode and @strip.
+                                  type: string
+                                value:
+                                  description: Static value
+                                  x-kubernetes-preserve-unknown-fields: true
+                            code:
+                              description: HTTP status code to override the default denial status code.
+                              type: integer
+                              format: int64
+                              maximum: 599
+                              minimum: 300
+                            headers:
+                              description: HTTP response headers to override the default denial headers.
+                              type: object
+                              additionalProperties:
+                                type: object
+                                properties:
+                                  expression:
+                                    description: |-
+                                      A Common Expression Language (CEL) expression that evaluates to a value.
+                                      String expressions are supported (https://pkg.go.dev/github.com/google/cel-go/ext#Strings).
+                                    type: string
+                                  selector:
+                                    description: |-
+                                      Simple path selector to fetch content from the authorization JSON (e.g. 'request.method') or a string template with variables that resolve to patterns (e.g. "Hello, {auth.identity.name}!").
+                                      Any pattern supported by https://pkg.go.dev/github.com/tidwall/gjson can be used.
+                                      The following Authorino custom modifiers are supported: @extract:{sep:" ",pos:0}, @replace{old:"",new:""}, @case:upper|lower, @base64:encode|decode and @strip.
+                                    type: string
+                                  value:
+                                    description: Static value
+                                    x-kubernetes-preserve-unknown-fields: true
+                            message:
+                              description: HTTP message to override the default denial message.
+                              type: object
+                              properties:
+                                expression:
+                                  description: |-
+                                    A Common Expression Language (CEL) expression that evaluates to a value.
+                                    String expressions are supported (https://pkg.go.dev/github.com/google/cel-go/ext#Strings).
+                                  type: string
+                                selector:
+                                  description: |-
+                                    Simple path selector to fetch content from the authorization JSON (e.g. 'request.method') or a string template with variables that resolve to patterns (e.g. "Hello, {auth.identity.name}!").
+                                    Any pattern supported by https://pkg.go.dev/github.com/tidwall/gjson can be used.
+                                    The following Authorino custom modifiers are supported: @extract:{sep:" ",pos:0}, @replace{old:"",new:""}, @case:upper|lower, @base64:encode|decode and @strip.
+                                  type: string
+                                value:
+                                  description: Static value
+                                  x-kubernetes-preserve-unknown-fields: true
+                discoveredPlans:
+                  description: list of planpolicies discovered from httproute
+                  type: array
+                  items:
+                    type: object
+                    required:
+                      - tier
+                    properties:
+                      limits:
+                        description: Limits contains the list of limits that the plan enforces.
+                        type: object
+                        properties:
+                          custom:
+                            description: Custom defines any additional limits defined in terms of a RateLimitPolicy Rate.
+                            type: array
+                            items:
+                              description: Rate defines the actual rate limit that will be used when there is a match
+                              type: object
+                              required:
+                                - limit
+                                - window
+                              properties:
+                                limit:
+                                  description: Limit defines the max value allowed for a given period of time
+                                  type: integer
+                                window:
+                                  description: Window defines the time period for which the Limit specified above applies.
+                                  type: string
+                                  pattern: '^([0-9]{1,5}(h|m|s|ms)){1,4}$'
+                          daily:
+                            description: Daily limit of requests for this plan.
+                            type: integer
+                          monthly:
+                            description: Monthly limit of requests for this plan.
+                            type: integer
+                          weekly:
+                            description: Weekly limit of requests for this plan.
+                            type: integer
+                          yearly:
+                            description: Yearly limit of requests for this plan.
+                            type: integer
+                      tier:
+                        description: Tier this plan represents.
+                        type: string
+                observedGeneration:
+                  description: ObservedGeneration reflects the generation of the most recently observed spec.
+                  type: integer
+                  format: int64
+                oidcDiscovery:
+                  description: OIDCDiscovery contains OIDC discovery information when JWT auth is configured
+                  type: object
+                  required:
+                    - tokenEndpoint
+                  properties:
+                    tokenEndpoint:
+                      description: TokenEndpoint is the URL where clients can obtain tokens
+                      type: string
+                openapi:
+                  description: OpenAPI specification fetched from the API and its sync status
+                  type: object
+                  required:
+                    - lastSyncTime
+                    - raw
+                  properties:
+                    lastSyncTime:
+                      description: lastSyncTime is the last time the raw content was updated.
+                      type: string
+                      format: date-time
+                    maxSizeUsed:
+                      description: maxSizeUsed is the max size limit that was in effect when this spec was fetched.
+                      type: integer
+                    raw:
+                      description: raw content
+                      type: string
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Ready
+          type: string
+          description: APIProduct Ready
+          priority: 2
+          jsonPath: '.status.conditions[?(@.type=="Ready")].status'
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+  conversion:
+    strategy: None
+status:
+  conditions:
+    - type: NamesAccepted
+      status: 'True'
+      lastTransitionTime: '2026-02-26T12:13:38Z'
+      reason: NoConflicts
+      message: no conflicts found
+    - type: Established
+      status: 'True'
+      lastTransitionTime: '2026-02-26T12:13:38Z'
+      reason: InitialNamesAccepted
+      message: the initial names have been accepted
+  acceptedNames:
+    plural: apiproducts
+    singular: apiproduct
+    kind: APIProduct
+    listKind: APIProductList
+  storedVersions:
+    - v1alpha1

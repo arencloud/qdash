@@ -1,0 +1,19 @@
+{{define "resource_form_fill"}}
+<div class="flash">Loaded <code>{{.Name}}</code> into form.</div>
+<script>
+(function(){
+  var kind = {{printf "%q" .KindParam}};
+  var set = function(id, val){
+    var el = document.getElementById(id + '-' + kind);
+    if(!el) return;
+    if(typeof val !== 'string') return;
+    el.value = val;
+  };
+  set('name', {{printf "%q" .Name}});
+  set('spec_json', {{printf "%q" .AdvancedJSON}});
+  {{range $k, $v := .FieldValues}}
+  set({{printf "%q" $k}}, {{printf "%q" $v}});
+  {{end}}
+})();
+</script>
+{{end}}

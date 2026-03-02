@@ -1,0 +1,9 @@
+.git
+.gitignore
+.env
+bin
+server
+docs/generated
+coverage.*
+*.out
+*.test

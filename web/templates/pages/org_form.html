@@ -1,0 +1,6 @@
+{{define "org_form"}}
+<form hx-post="/organizations" hx-target="#org-list" hx-swap="outerHTML">
+  <input name="name" placeholder="Organization name" required>
+  <button type="submit">Create</button>
+</form>
+{{end}}

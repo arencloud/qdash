@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: qdash-config
+  namespace: qdash-system
+data:
+  OIDC_REDIRECT_URL: "https://qdash.apps.example.openshift.local/auth/oidc/callback"

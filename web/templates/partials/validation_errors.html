@@ -1,0 +1,10 @@
+{{define "validation_errors"}}
+<div class="flash">
+  <strong>Validation errors:</strong>
+  <ul>
+    {{range .Errors}}
+    <li><code>{{.Field}}</code>: {{.Message}}</li>
+    {{end}}
+  </ul>
+</div>
+{{end}}

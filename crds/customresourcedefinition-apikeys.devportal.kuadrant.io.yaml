@@ -1,0 +1,412 @@
+﻿kind: CustomResourceDefinition
+apiVersion: apiextensions.k8s.io/v1
+metadata:
+  name: apikeys.devportal.kuadrant.io
+  uid: 62e6f081-6ef6-47b5-9207-6aac10f0e8fe
+  resourceVersion: '8142994'
+  generation: 1
+  creationTimestamp: '2026-02-26T12:13:38Z'
+  labels:
+    olm.managed: 'true'
+    operators.coreos.com/rhcl-operator.openshift-operators: ''
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.18.0
+    operatorframework.io/installed-alongside-3f36d83daa5babf2: openshift-operators/rhcl-operator.v1.3.0
+  managedFields:
+    - manager: catalog
+      operation: Update
+      apiVersion: apiextensions.k8s.io/v1
+      time: '2026-02-26T12:13:38Z'
+      fieldsType: FieldsV1
+      fieldsV1:
+        'f:metadata':
+          'f:annotations':
+            .: {}
+            'f:controller-gen.kubebuilder.io/version': {}
+            'f:operatorframework.io/installed-alongside-3f36d83daa5babf2': {}
+          'f:labels':
+            .: {}
+            'f:olm.managed': {}
+        'f:spec':
+          'f:conversion':
+            .: {}
+            'f:strategy': {}
+          'f:group': {}
+          'f:names':
+            'f:kind': {}
+            'f:listKind': {}
+            'f:plural': {}
+            'f:shortNames': {}
+            'f:singular': {}
+          'f:scope': {}
+          'f:versions': {}
+    - manager: kube-apiserver
+      operation: Update
+      apiVersion: apiextensions.k8s.io/v1
+      time: '2026-02-26T12:13:38Z'
+      fieldsType: FieldsV1
+      fieldsV1:
+        'f:status':
+          'f:acceptedNames':
+            'f:kind': {}
+            'f:listKind': {}
+            'f:plural': {}
+            'f:shortNames': {}
+            'f:singular': {}
+          'f:conditions':
+            'k:{"type":"Established"}':
+              .: {}
+              'f:lastTransitionTime': {}
+              'f:message': {}
+              'f:reason': {}
+              'f:status': {}
+              'f:type': {}
+            'k:{"type":"NamesAccepted"}':
+              .: {}
+              'f:lastTransitionTime': {}
+              'f:message': {}
+              'f:reason': {}
+              'f:status': {}
+              'f:type': {}
+      subresource: status
+    - manager: olm
+      operation: Update
+      apiVersion: apiextensions.k8s.io/v1
+      time: '2026-02-26T12:14:49Z'
+      fieldsType: FieldsV1
+      fieldsV1:
+        'f:metadata':
+          'f:labels':
+            'f:operators.coreos.com/rhcl-operator.openshift-operators': {}
+spec:
+  group: devportal.kuadrant.io
+  names:
+    plural: apikeys
+    singular: apikey
+    shortNames:
+      - apik
+    kind: APIKey
+    listKind: APIKeyList
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          description: APIKey is the Schema for the apikeys API.
+          type: object
+          properties:
+            apiVersion:
+              description: |-
+                APIVersion defines the versioned schema of this representation of an object.
+                Servers should convert recognized schemas to the latest internal value, and
+                may reject unrecognized values.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+              type: string
+            kind:
+              description: |-
+                Kind is a string value representing the REST resource this object represents.
+                Servers may infer this from the endpoint the client submits requests to.
+                Cannot be updated.
+                In CamelCase.
+                More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+              type: string
+            metadata:
+              type: object
+            spec:
+              description: APIKeySpec defines the desired state of APIKey.
+              type: object
+              required:
+                - apiProductRef
+                - planTier
+                - requestedBy
+                - useCase
+              properties:
+                apiProductRef:
+                  description: Reference to the APIProduct this APIKey belongs to.
+                  type: object
+                  required:
+                    - name
+                  properties:
+                    name:
+                      type: string
+                planTier:
+                  description: 'PlanTier is the tier of the plan (e.g., "premium", "basic", "enterprise")'
+                  type: string
+                requestedBy:
+                  description: RequestedBy contains information about who requested the API key
+                  type: object
+                  required:
+                    - email
+                    - userId
+                  properties:
+                    email:
+                      description: Email is the email address of the user
+                      type: string
+                      pattern: '^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+                    userId:
+                      description: UserID is the identifier of the user requesting the API key
+                      type: string
+                useCase:
+                  description: UseCase describes how the API key will be used
+                  type: string
+            status:
+              description: APIKeyStatus defines the observed state of APIKey.
+              type: object
+              properties:
+                secretRef:
+                  description: SecretRef is a reference to the created Secret
+                  type: object
+                  required:
+                    - key
+                    - name
+                  properties:
+                    key:
+                      description: The key of the secret to select from.  Must be a valid secret key.
+                      type: string
+                    name:
+                      description: The name of the secret in the Authorino's namespace to select from.
+                      type: string
+                reviewedAt:
+                  description: ReviewedAt is the timestamp when the request was reviewed
+                  type: string
+                  format: date-time
+                apiHostname:
+                  description: APIHostname is the hostname from the HTTPRoute
+                  type: string
+                authScheme:
+                  description: AuthScheme displays the APIKey AuthScheme
+                  type: object
+                  properties:
+                    authenticationSpec:
+                      description: Settings to select the API key Kubernetes secrets.
+                      type: object
+                      required:
+                        - selector
+                      properties:
+                        allNamespaces:
+                          description: |-
+                            Whether Authorino should look for API key secrets in all namespaces or only in the same namespace as the AuthConfig.
+                            Enabling this option in namespaced Authorino instances has no effect.
+                          type: boolean
+                          default: false
+                        selector:
+                          description: Label selector used by Authorino to match secrets from the cluster storing valid credentials to authenticate to this service
+                          type: object
+                          properties:
+                            matchExpressions:
+                              description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
+                              type: array
+                              items:
+                                description: |-
+                                  A label selector requirement is a selector that contains values, a key, and an operator that
+                                  relates the key and values.
+                                type: object
+                                required:
+                                  - key
+                                  - operator
+                                properties:
+                                  key:
+                                    description: key is the label key that the selector applies to.
+                                    type: string
+                                  operator:
+                                    description: |-
+                                      operator represents a key's relationship to a set of values.
+                                      Valid operators are In, NotIn, Exists and DoesNotExist.
+                                    type: string
+                                  values:
+                                    description: |-
+                                      values is an array of string values. If the operator is In or NotIn,
+                                      the values array must be non-empty. If the operator is Exists or DoesNotExist,
+                                      the values array must be empty. This array is replaced during a strategic
+                                      merge patch.
+                                    type: array
+                                    items:
+                                      type: string
+                                    x-kubernetes-list-type: atomic
+                              x-kubernetes-list-type: atomic
+                            matchLabels:
+                              description: |-
+                                matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels
+                                map is equivalent to an element of matchExpressions, whose key field is "key", the
+                                operator is "In", and the values array contains only "value". The requirements are ANDed.
+                              type: object
+                              additionalProperties:
+                                type: string
+                          x-kubernetes-map-type: atomic
+                    credentials:
+                      type: object
+                      properties:
+                        authorizationHeader:
+                          type: object
+                          properties:
+                            prefix:
+                              type: string
+                        cookie:
+                          type: object
+                          required:
+                            - name
+                          properties:
+                            name:
+                              type: string
+                        customHeader:
+                          type: object
+                          required:
+                            - name
+                          properties:
+                            name:
+                              type: string
+                        queryString:
+                          type: object
+                          required:
+                            - name
+                          properties:
+                            name:
+                              type: string
+                reviewedBy:
+                  description: ReviewedBy indicates who approved or rejected the request
+                  type: string
+                canReadSecret:
+                  description: CanReadSecret expresses the permission to read the APIKey's secret
+                  type: boolean
+                  default: true
+                limits:
+                  description: Limits contains the rate limits for the plan
+                  type: object
+                  properties:
+                    custom:
+                      description: Custom defines any additional limits defined in terms of a RateLimitPolicy Rate.
+                      type: array
+                      items:
+                        description: Rate defines the actual rate limit that will be used when there is a match
+                        type: object
+                        required:
+                          - limit
+                          - window
+                        properties:
+                          limit:
+                            description: Limit defines the max value allowed for a given period of time
+                            type: integer
+                          window:
+                            description: Window defines the time period for which the Limit specified above applies.
+                            type: string
+                            pattern: '^([0-9]{1,5}(h|m|s|ms)){1,4}$'
+                    daily:
+                      description: Daily limit of requests for this plan.
+                      type: integer
+                    monthly:
+                      description: Monthly limit of requests for this plan.
+                      type: integer
+                    weekly:
+                      description: Weekly limit of requests for this plan.
+                      type: integer
+                    yearly:
+                      description: Yearly limit of requests for this plan.
+                      type: integer
+                conditions:
+                  description: Conditions represent the latest available observations of the APIKey's state
+                  type: array
+                  items:
+                    description: Condition contains details for one aspect of the current state of this API Resource.
+                    type: object
+                    required:
+                      - lastTransitionTime
+                      - message
+                      - reason
+                      - status
+                      - type
+                    properties:
+                      lastTransitionTime:
+                        description: |-
+                          lastTransitionTime is the last time the condition transitioned from one status to another.
+                          This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                        type: string
+                        format: date-time
+                      message:
+                        description: |-
+                          message is a human readable message indicating details about the transition.
+                          This may be an empty string.
+                        type: string
+                        maxLength: 32768
+                      observedGeneration:
+                        description: |-
+                          observedGeneration represents the .metadata.generation that the condition was set based upon.
+                          For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                          with respect to the current state of the instance.
+                        type: integer
+                        format: int64
+                        minimum: 0
+                      reason:
+                        description: |-
+                          reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                          Producers of specific condition types may define expected values and meanings for this field,
+                          and whether the values are considered a guaranteed API.
+                          The value should be a CamelCase string.
+                          This field may not be empty.
+                        type: string
+                        maxLength: 1024
+                        minLength: 1
+                        pattern: '^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$'
+                      status:
+                        description: 'status of the condition, one of True, False, Unknown.'
+                        type: string
+                        enum:
+                          - 'True'
+                          - 'False'
+                          - Unknown
+                      type:
+                        description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                        type: string
+                        maxLength: 316
+                        pattern: '^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$'
+                phase:
+                  description: |-
+                    Phase represents the current phase of the APIKey
+                    Valid values are "Pending", "Approved", or "Rejected"
+                  type: string
+                  enum:
+                    - Pending
+                    - Approved
+                    - Rejected
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Phase
+          type: string
+          jsonPath: .status.phase
+        - name: API
+          type: string
+          jsonPath: .spec.apiProductRef.name
+        - name: Plan
+          type: string
+          jsonPath: .spec.planTier
+        - name: User
+          type: string
+          jsonPath: .spec.requestedBy.userId
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+  conversion:
+    strategy: None
+status:
+  conditions:
+    - type: NamesAccepted
+      status: 'True'
+      lastTransitionTime: '2026-02-26T12:13:38Z'
+      reason: NoConflicts
+      message: no conflicts found
+    - type: Established
+      status: 'True'
+      lastTransitionTime: '2026-02-26T12:13:38Z'
+      reason: InitialNamesAccepted
+      message: the initial names have been accepted
+  acceptedNames:
+    plural: apikeys
+    singular: apikey
+    shortNames:
+      - apik
+    kind: APIKey
+    listKind: APIKeyList
+  storedVersions:
+    - v1alpha1

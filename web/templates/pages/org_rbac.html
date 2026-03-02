@@ -1,0 +1,177 @@
+{{define "org_rbac"}}
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>RBAC</title><link rel="stylesheet" href="/static/css/app.css"></head>
+<body><main class="shell">
+  <section class="hero compact"><h1>RBAC</h1><p>Organization: {{.Slug}}</p></section>
+  <div id="rbac-feedback"></div>
+  <div id="rbac-panel" hx-get="/organizations/{{.Slug}}/rbac/panel" hx-trigger="load,rbacChanged from:body" hx-swap="innerHTML"></div>
+</main></body></html>
+{{end}}
+
+{{define "rbac_panel"}}
+<section class="grid three">
+  <div class="card"><h3>Admins</h3><p>Full organization management.</p></div>
+  <div class="card"><h3>Editors</h3><p>Resource CRUD without org ownership changes.</p></div>
+  <div class="card"><h3>Viewers</h3><p>Read-only access.</p></div>
+</section>
+
+<section class="card">
+  <h3>Memberships</h3>
+  <form hx-post="/organizations/{{.Slug}}/rbac/users/upsert" hx-target="#rbac-feedback" hx-swap="innerHTML">
+    <label>Add or Update Membership</label>
+    <div class="grid three">
+      <div>
+        <input name="email" placeholder="user@example.com" required>
+      </div>
+      <div>
+        <select name="role" required>
+          <option value="">select role</option>
+          <option value="admin">admin</option>
+          <option value="editor">editor</option>
+          <option value="viewer">viewer</option>
+        </select>
+      </div>
+      <div>
+        <input name="custom_permissions" placeholder="gateway.write,security.read">
+      </div>
+    </div>
+    <button type="submit">Save Membership</button>
+  </form>
+  <table class="audit-table">
+    <thead><tr><th>Email</th><th>Role</th><th>Custom Permissions</th></tr></thead>
+    <tbody>
+      {{range .Memberships}}
+      <tr>
+        <td>{{.Email}}</td>
+        <td>{{.Role}}</td>
+        <td>{{if .Permission}}{{.Permission}}{{else}}-{{end}}</td>
+      </tr>
+      {{else}}
+      <tr><td colspan="3">No memberships yet.</td></tr>
+      {{end}}
+    </tbody>
+  </table>
+</section>
+
+<section class="card">
+  <h3>Custom Permissions</h3>
+  <form hx-post="/organizations/{{.Slug}}/rbac/permissions" hx-target="#rbac-feedback" hx-swap="innerHTML">
+    <div class="grid three">
+      <div>
+        <label>Name</label>
+        <input name="name" placeholder="optional; defaults to resource.action">
+      </div>
+      <div>
+        <label>Resource</label>
+        <select name="resource" required>
+          <option value="">select resource</option>
+          <option value="organizations">organizations</option>
+          <option value="rbac">rbac</option>
+          <option value="gateway">gateway</option>
+          <option value="policies">policies</option>
+          <option value="namespaces">namespaces</option>
+          <option value="audit">audit</option>
+        </select>
+      </div>
+      <div>
+        <label>Action</label>
+        <select name="action" required>
+          <option value="">select action</option>
+          <option value="read">read</option>
+          <option value="write">write</option>
+          <option value="delete">delete</option>
+          <option value="approve">approve</option>
+          <option value="manage">manage</option>
+        </select>
+      </div>
+    </div>
+    <label>Definition</label>
+    <input name="definition" placeholder="Can approve security policy changes">
+    <button type="submit">Create Permission</button>
+  </form>
+</section>
+
+<section class="card">
+  <h3>Groups</h3>
+  <form hx-post="/organizations/{{.Slug}}/rbac/groups" hx-target="#rbac-feedback" hx-swap="innerHTML">
+    <label>Create group</label>
+    <input name="name" placeholder="group name">
+    <button type="submit">Create Group</button>
+  </form>
+</section>
+
+{{range .Groups}}
+{{$g := .}}
+<section class="card">
+  <h3>{{$g.Name}}</h3>
+  <div class="actions">
+    <form hx-post="/organizations/{{$.Slug}}/rbac/groups/{{$g.ID}}/delete" hx-target="#rbac-feedback" hx-swap="innerHTML">
+      <button type="submit">Delete Group</button>
+    </form>
+  </div>
+
+  <div class="grid two">
+    <div>
+      <h4>Members</h4>
+      <form hx-post="/organizations/{{$.Slug}}/rbac/groups/{{$g.ID}}/users" hx-target="#rbac-feedback" hx-swap="innerHTML">
+        <input name="email" placeholder="user email">
+        <button type="submit">Add Member</button>
+      </form>
+      <table class="audit-table">
+        <thead><tr><th>Email</th><th>Action</th></tr></thead>
+        <tbody>
+          {{range .Members}}
+          <tr>
+            <td>{{.Email}}</td>
+            <td>
+              <form hx-post="/organizations/{{$.Slug}}/rbac/groups/{{$g.ID}}/users/{{.UserID}}/delete" hx-target="#rbac-feedback" hx-swap="innerHTML">
+                <button type="submit">Remove</button>
+              </form>
+            </td>
+          </tr>
+          {{else}}
+          <tr><td colspan="2">No members.</td></tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+
+    <div>
+      <h4>Group Permissions</h4>
+      <form hx-post="/organizations/{{$.Slug}}/rbac/groups/{{$g.ID}}/permissions" hx-target="#rbac-feedback" hx-swap="innerHTML">
+        <select name="permission">
+          <option value="">select permission</option>
+          {{range $.Permissions}}<option value="{{.}}">{{.}}</option>{{end}}
+        </select>
+        <button type="submit">Add Permission</button>
+      </form>
+      <table class="audit-table">
+        <thead><tr><th>Permission</th><th>Action</th></tr></thead>
+        <tbody>
+          {{range .Permissions}}
+          <tr>
+            <td>{{.}}</td>
+            <td>
+              <form hx-post="/organizations/{{$.Slug}}/rbac/groups/{{$g.ID}}/permissions/delete" hx-target="#rbac-feedback" hx-swap="innerHTML">
+                <input type="hidden" name="permission" value="{{.}}">
+                <button type="submit">Remove</button>
+              </form>
+            </td>
+          </tr>
+          {{else}}
+          <tr><td colspan="2">No permissions.</td></tr>
+          {{end}}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+{{else}}
+<section class="card"><p>No groups yet.</p></section>
+{{end}}
+
+<section class="card">
+  <h3>Available Custom Permissions</h3>
+  <p>{{if .Permissions}}{{range .Permissions}}<code>{{.}}</code> {{end}}{{else}}No custom permissions created yet.{{end}}</p>
+</section>
+{{end}}

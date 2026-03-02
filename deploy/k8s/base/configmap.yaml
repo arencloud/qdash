@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: qdash-config
+  namespace: qdash-system
+data:
+  APP_NAME: qdash
+  APP_ENV: production
+  BIND_ADDRESS: ":8080"
+  DEFAULT_ISTIO_PROFILE: default
+  OIDC_REDIRECT_URL: "https://qdash.example.com/auth/oidc/callback"
+  OIDC_SCOPES: "openid,profile,email,groups"
