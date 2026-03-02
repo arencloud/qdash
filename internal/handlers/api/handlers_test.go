@@ -156,7 +156,7 @@ func TestClusterFailuresReturnBadGateway(t *testing.T) {
 			path: func(org models.Organization) string {
 				return "/api/v1/orgs/" + org.Slug + "/namespaces"
 			},
-			body: `{"name":"team-bg","profile":"default"}`,
+			body: `{"name":"team-bg","discoveryLabel":"default","revisionTag":"default"}`,
 			prepare: func(dynamicClient *dynfake.FakeDynamicClient, coreClient *k8sfake.Clientset) {
 				coreClient.PrependReactor("create", "namespaces", func(action clientgotesting.Action) (bool, runtime.Object, error) {
 					return true, nil, errors.New("core create failed")
@@ -265,7 +265,7 @@ func TestCreateNamespaceUsesOrganizationDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create org: %v", err)
 	}
-	org.Settings = []byte(`{"defaultNamespaceInstance":"canary","defaultNamespaceProfile":"strict-mtls"}`)
+	org.Settings = []byte(`{"defaultIstioDiscoveryLabel":"default","defaultIstioRevisionTag":"canary"}`)
 	if err := db.Save(&org).Error; err != nil {
 		t.Fatalf("save org settings: %v", err)
 	}
@@ -288,11 +288,8 @@ func TestCreateNamespaceUsesOrganizationDefaults(t *testing.T) {
 	if ns.Labels["istio.io/rev"] != "canary" {
 		t.Fatalf("expected istio.io/rev=canary, got %q", ns.Labels["istio.io/rev"])
 	}
-	if ns.Labels["istio-injection"] != "enabled" {
-		t.Fatalf("expected istio-injection=enabled, got %q", ns.Labels["istio-injection"])
-	}
-	if ns.Labels["security.istio.io/tlsMode"] != "istio" {
-		t.Fatalf("expected security.istio.io/tlsMode=istio, got %q", ns.Labels["security.istio.io/tlsMode"])
+	if ns.Labels["istio-discovery"] != "default" {
+		t.Fatalf("expected istio-discovery=default, got %q", ns.Labels["istio-discovery"])
 	}
 }
 
@@ -307,13 +304,13 @@ func TestCreateNamespaceRequestOverridesOrganizationDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create org: %v", err)
 	}
-	org.Settings = []byte(`{"defaultNamespaceInstance":"canary","defaultNamespaceProfile":"strict-mtls"}`)
+	org.Settings = []byte(`{"defaultIstioDiscoveryLabel":"default","defaultIstioRevisionTag":"canary"}`)
 	if err := db.Save(&org).Error; err != nil {
 		t.Fatalf("save org settings: %v", err)
 	}
 	setUser(admin)
 
-	body := bytes.NewBufferString(`{"name":"team-override","instance":"default","profile":"ambient"}`)
+	body := bytes.NewBufferString(`{"name":"team-override","discoveryLabel":"mesh-a","revisionTag":"prod-stable"}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/orgs/"+org.Slug+"/namespaces", body)
 	req.Header.Set("Content-Type", "application/json")
 	res := httptest.NewRecorder()
@@ -327,14 +324,14 @@ func TestCreateNamespaceRequestOverridesOrganizationDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get namespace: %v", err)
 	}
-	if ns.Labels["istio.io/rev"] != "default" {
-		t.Fatalf("expected istio.io/rev=default from request override, got %q", ns.Labels["istio.io/rev"])
+	if ns.Labels["istio.io/rev"] != "prod-stable" {
+		t.Fatalf("expected istio.io/rev=prod-stable from request override, got %q", ns.Labels["istio.io/rev"])
 	}
-	if ns.Labels["istio.io/dataplane-mode"] != "ambient" {
-		t.Fatalf("expected istio.io/dataplane-mode=ambient from request override, got %q", ns.Labels["istio.io/dataplane-mode"])
+	if ns.Labels["istio-discovery"] != "mesh-a" {
+		t.Fatalf("expected istio-discovery=mesh-a from request override, got %q", ns.Labels["istio-discovery"])
 	}
-	if _, ok := ns.Labels["security.istio.io/tlsMode"]; ok {
-		t.Fatalf("did not expect strict-mtls label after profile override: %+v", ns.Labels)
+	if ns.Labels["istio.io/rev"] == "canary" {
+		t.Fatalf("did not expect default canary revision after override: %+v", ns.Labels)
 	}
 }
 

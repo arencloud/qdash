@@ -263,10 +263,10 @@ func (h *Handler) orgSettingsUpdate(c *gin.Context) {
 		return
 	}
 	settings := map[string]any{
-		"defaultNamespaceProfile":  strings.TrimSpace(c.PostForm("default_namespace_profile")),
-		"defaultNamespaceInstance": strings.TrimSpace(c.PostForm("default_namespace_instance")),
-		"contactEmail":             strings.TrimSpace(c.PostForm("contact_email")),
-		"environment":              strings.TrimSpace(c.PostForm("environment")),
+		"defaultIstioDiscoveryLabel": strings.TrimSpace(c.PostForm("default_istio_discovery_label")),
+		"defaultIstioRevisionTag":    strings.TrimSpace(c.PostForm("default_istio_revision_tag")),
+		"contactEmail":               strings.TrimSpace(c.PostForm("contact_email")),
+		"environment":                strings.TrimSpace(c.PostForm("environment")),
 	}
 	if err := h.rbac.UpdateOrganizationSettings(org.ID, settings); err != nil {
 		c.HTML(http.StatusBadRequest, "flash", gin.H{"Message": err.Error()})
@@ -708,7 +708,17 @@ func (h *Handler) orgAudit(c *gin.Context) {
 		c.HTML(http.StatusForbidden, "flash", gin.H{"Message": "forbidden"})
 		return
 	}
-	events, err := h.rbac.ListAuditEvents(org.ID, 200)
+	limit := 200
+	if q := strings.TrimSpace(c.Query("limit")); q != "" {
+		if n, convErr := strconv.Atoi(q); convErr == nil && n > 0 && n <= 500 {
+			limit = n
+		}
+	}
+	resourceFilter := strings.TrimSpace(c.Query("resource"))
+	statusFilter := strings.TrimSpace(c.Query("status"))
+	eventTypeFilter := strings.TrimSpace(c.Query("eventType"))
+
+	events, err := h.rbac.ListAuditEventsFiltered(org.ID, limit, resourceFilter, statusFilter, eventTypeFilter)
 	if err != nil {
 		c.HTML(http.StatusInternalServerError, "flash", gin.H{"Message": "failed to load audit events"})
 		return
@@ -734,7 +744,16 @@ func (h *Handler) orgAudit(c *gin.Context) {
 			Details:   prettyJSON(e.Details),
 		})
 	}
-	c.HTML(http.StatusOK, "org_audit", gin.H{"Slug": c.Param("slug"), "Rows": rows})
+	c.HTML(http.StatusOK, "org_audit", gin.H{
+		"Slug": c.Param("slug"),
+		"Rows": rows,
+		"Filter": gin.H{
+			"Resource":  resourceFilter,
+			"Status":    statusFilter,
+			"EventType": eventTypeFilter,
+			"Limit":     limit,
+		},
+	})
 }
 
 func (h *Handler) orgResources(c *gin.Context) {
@@ -781,54 +800,45 @@ func (h *Handler) resourceNamespacesPanel(c *gin.Context) {
 		c.HTML(http.StatusInternalServerError, "flash", gin.H{"Message": err.Error()})
 		return
 	}
-	profiles := service.NamespaceProfiles()
-	sort.Strings(profiles)
-	instances := service.NamespaceInstances()
-	sort.Strings(instances)
-
-	defaultInstance := "default"
-	if len(instances) > 0 {
-		defaultInstance = instances[0]
-		for _, inst := range instances {
-			if inst == "default" {
-				defaultInstance = "default"
-				break
-			}
-		}
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 20*time.Second)
+	defer cancel()
+	discoveryLabels, revisionTags, discoverErr := h.kubeSvc.DiscoverIstioLabels(ctx)
+	if discoverErr != nil {
+		c.HTML(http.StatusBadGateway, "flash", gin.H{"Message": discoverErr.Error()})
+		return
+	}
+	defaultDiscovery := "default"
+	if len(discoveryLabels) > 0 {
+		defaultDiscovery = discoveryLabels[0]
+	}
+	defaultRevision := "default"
+	if len(revisionTags) > 0 {
+		defaultRevision = revisionTags[0]
 	}
 
 	settings := map[string]any{}
 	if len(org.Settings) > 0 {
 		_ = json.Unmarshal(org.Settings, &settings)
 	}
-	if v, ok := settings["defaultNamespaceInstance"].(string); ok && strings.TrimSpace(v) != "" {
-		defaultInstance = strings.TrimSpace(v)
+	if v, ok := settings["defaultIstioDiscoveryLabel"].(string); ok && strings.TrimSpace(v) != "" {
+		defaultDiscovery = strings.TrimSpace(v)
 	}
-
-	defaultProfile := "default"
-	if len(profiles) > 0 {
-		defaultProfile = profiles[0]
-		for _, p := range profiles {
-			if p == "default" {
-				defaultProfile = "default"
-				break
-			}
-		}
+	if v, ok := settings["defaultIstioRevisionTag"].(string); ok && strings.TrimSpace(v) != "" {
+		defaultRevision = strings.TrimSpace(v)
 	}
-
-	if v, ok := settings["defaultNamespaceProfile"].(string); ok && strings.TrimSpace(v) != "" {
-		defaultProfile = strings.TrimSpace(v)
+	labelOptions := []string{
+		"istio-discovery=" + defaultDiscovery,
+		"istio.io/rev=" + defaultRevision,
 	}
-	labelOptions := namespaceLabelOptionsForInstance(defaultInstance)
 	c.HTML(http.StatusOK, "namespace_panel", gin.H{
-		"Slug":            c.Param("slug"),
-		"Namespaces":      namespaces,
-		"DefaultNS":       defaultNS,
-		"Instances":       instances,
-		"DefaultInstance": defaultInstance,
-		"Profiles":        profiles,
-		"DefaultProfile":  defaultProfile,
-		"LabelOptions":    labelOptions,
+		"Slug":             c.Param("slug"),
+		"Namespaces":       namespaces,
+		"DefaultNS":        defaultNS,
+		"DiscoveryLabels":  discoveryLabels,
+		"RevisionTags":     revisionTags,
+		"DefaultDiscovery": defaultDiscovery,
+		"DefaultRevision":  defaultRevision,
+		"LabelOptions":     labelOptions,
 	})
 }
 
@@ -839,12 +849,19 @@ func (h *Handler) resourceNamespaceLabelOptions(c *gin.Context) {
 		c.HTML(http.StatusForbidden, "flash", gin.H{"Message": "forbidden"})
 		return
 	}
-	instance := strings.TrimSpace(c.Query("instance"))
-	if instance == "" {
-		instance = "default"
+	discovery := strings.TrimSpace(c.Query("discovery_label"))
+	revision := strings.TrimSpace(c.Query("revision_tag"))
+	if discovery == "" {
+		discovery = "default"
+	}
+	if revision == "" {
+		revision = "default"
 	}
 	c.HTML(http.StatusOK, "namespace_label_options", gin.H{
-		"LabelOptions": namespaceLabelOptionsForInstance(instance),
+		"LabelOptions": []string{
+			"istio-discovery=" + discovery,
+			"istio.io/rev=" + revision,
+		},
 	})
 }
 
@@ -860,46 +877,47 @@ func (h *Handler) resourceNamespaceCreate(c *gin.Context) {
 		c.HTML(http.StatusBadRequest, "flash", gin.H{"Message": "namespace name is required"})
 		return
 	}
-	profile := strings.TrimSpace(c.PostForm("profile"))
-	instance := strings.TrimSpace(c.PostForm("instance"))
-	if profile == "" || instance == "" {
+	discoveryLabel := strings.TrimSpace(c.PostForm("discovery_label"))
+	revisionTag := strings.TrimSpace(c.PostForm("revision_tag"))
+	if discoveryLabel == "" || revisionTag == "" {
 		settings := map[string]any{}
 		if len(org.Settings) > 0 {
 			_ = json.Unmarshal(org.Settings, &settings)
 		}
-		if instance == "" {
-			if v, ok := settings["defaultNamespaceInstance"].(string); ok {
-				instance = strings.TrimSpace(v)
+		if discoveryLabel == "" {
+			if v, ok := settings["defaultIstioDiscoveryLabel"].(string); ok {
+				discoveryLabel = strings.TrimSpace(v)
 			}
 		}
-		if profile == "" {
-			if v, ok := settings["defaultNamespaceProfile"].(string); ok {
-				profile = strings.TrimSpace(v)
+		if revisionTag == "" {
+			if v, ok := settings["defaultIstioRevisionTag"].(string); ok {
+				revisionTag = strings.TrimSpace(v)
 			}
 		}
 	}
-	if profile == "" {
-		profile = "default"
-	}
-	if instance == "" {
-		instance = "default"
+	if discoveryLabel == "" || revisionTag == "" {
+		c.HTML(http.StatusBadRequest, "flash", gin.H{"Message": "discovery label and revision tag are required"})
+		return
 	}
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 20*time.Second)
 	defer cancel()
-	extra := map[string]string{}
+	labels := map[string]string{
+		"istio-discovery": discoveryLabel,
+		"istio.io/rev":    revisionTag,
+	}
 	for _, kv := range c.PostFormArray("labels") {
 		parts := strings.SplitN(strings.TrimSpace(kv), "=", 2)
 		if len(parts) != 2 {
 			continue
 		}
-		extra[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
+		labels[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
 	}
-	if err := h.kubeSvc.CreateNamespace(ctx, namespace, instance, profile, extra); err != nil {
+	if err := h.kubeSvc.CreateNamespace(ctx, namespace, labels); err != nil {
 		_ = h.rbac.RecordAuditEvent(org.ID, user.ID, "namespace.create.failed", "namespace", "failed", "namespace creation failed", map[string]any{
-			"namespace": namespace,
-			"instance":  instance,
-			"profile":   profile,
-			"error":     err.Error(),
+			"namespace":      namespace,
+			"discoveryLabel": discoveryLabel,
+			"revisionTag":    revisionTag,
+			"error":          err.Error(),
 		})
 		c.HTML(http.StatusBadGateway, "flash", gin.H{"Message": err.Error()})
 		return
@@ -909,9 +927,9 @@ func (h *Handler) resourceNamespaceCreate(c *gin.Context) {
 		return
 	}
 	_ = h.rbac.RecordAuditEvent(org.ID, user.ID, "namespace.create", "namespace", "success", "namespace created and claimed", map[string]any{
-		"namespace": namespace,
-		"instance":  instance,
-		"profile":   profile,
+		"namespace":      namespace,
+		"discoveryLabel": discoveryLabel,
+		"revisionTag":    revisionTag,
 	})
 	c.Header("HX-Trigger", "namespaceChanged,resourceChanged")
 	c.HTML(http.StatusOK, "flash", gin.H{"Message": "namespace created and linked to organization"})

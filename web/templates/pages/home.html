@@ -12,12 +12,33 @@
   <div class="bg-orb orb-1"></div>
   <div class="bg-orb orb-2"></div>
   <main class="shell">
+    <section class="topbar">
+      <a class="brandmark" href="/">QDash</a>
+      <div class="top-actions">
+        <a class="btn ghost" href="/resources">API Center</a>
+        <form method="post" action="/logout">
+          <button type="submit">Logout</button>
+        </form>
+      </div>
+    </section>
+
     <section class="hero">
       <h1>QDash Control Plane</h1>
       <p>Multi-tenant GatewayAPI and policy dashboard with HTMX + Gin.</p>
-      <form method="post" action="/logout">
-        <button type="submit">Logout</button>
-      </form>
+      <div class="kpi-strip">
+        <div class="kpi-card">
+          <p class="kpi-label">Organizations</p>
+          <p class="kpi-value">{{len .Organizations}}</p>
+        </div>
+        <div class="kpi-card">
+          <p class="kpi-label">Auth Mode</p>
+          <p class="kpi-value">OIDC</p>
+        </div>
+        <div class="kpi-card">
+          <p class="kpi-label">UI Stack</p>
+          <p class="kpi-value">Gin + HTMX</p>
+        </div>
+      </div>
     </section>
 
     <section class="grid two">

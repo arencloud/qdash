@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/arencloud/qdash/internal/kube"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -43,17 +42,7 @@ func (s *ResourceService) ListGatewayClasses(ctx context.Context) ([]string, err
 	return s.krs.ListGatewayClasses(ctx)
 }
 
-func (s *ResourceService) CreateNamespace(ctx context.Context, name, instance, profile string, extraLabels map[string]string) error {
-	labels, err := kube.BuildNamespaceLabels(instance, profile)
-	if err != nil {
-		return err
-	}
-	for k, v := range extraLabels {
-		if strings.TrimSpace(k) == "" {
-			continue
-		}
-		labels[k] = v
-	}
+func (s *ResourceService) CreateNamespace(ctx context.Context, name string, labels map[string]string) error {
 	return s.krs.CreateNamespace(ctx, name, labels)
 }
 
@@ -75,6 +64,10 @@ func NamespaceInstances() []string {
 		instances = append(instances, name)
 	}
 	return instances
+}
+
+func (s *ResourceService) DiscoverIstioLabels(ctx context.Context) ([]string, []string, error) {
+	return s.krs.DiscoverIstioLabels(ctx)
 }
 
 func kindFromResource(resource string) string {

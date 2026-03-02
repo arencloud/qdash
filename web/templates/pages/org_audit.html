@@ -1,13 +1,64 @@
 {{define "org_audit"}}
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Audit</title><link rel="stylesheet" href="/static/css/app.css"></head>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Audit</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+</head>
 <body>
+<div class="bg-orb orb-1"></div>
+<div class="bg-orb orb-2"></div>
 <main class="shell">
+  <section class="topbar">
+    <a class="brandmark" href="/">QDash</a>
+    <div class="top-actions">
+      <a class="btn ghost" href="/organizations/{{.Slug}}/resources">Resources</a>
+    </div>
+  </section>
   <section class="hero compact">
     <h1>Audit Events</h1>
     <p>Organization: {{.Slug}}</p>
   </section>
+  <section class="tabs">
+    <a class="tab" href="/organizations/{{.Slug}}/settings">Settings</a>
+    <a class="tab" href="/organizations/{{.Slug}}/rbac">RBAC</a>
+    <a class="tab" href="/organizations/{{.Slug}}/oidc">OIDC</a>
+    <a class="tab" href="/organizations/{{.Slug}}/resources">Resources</a>
+    <a class="tab active" href="/organizations/{{.Slug}}/audit">Audit</a>
+  </section>
   <section class="card">
+    <p class="muted">Review security and resource events by timestamp. Expand details to inspect full payload.</p>
+    <form method="get" class="audit-filter">
+      <div class="grid four">
+        <div>
+          <label>Status</label>
+          <select name="status">
+            <option value="">all</option>
+            <option value="success" {{if eq .Filter.Status "success"}}selected{{end}}>success</option>
+            <option value="failed" {{if eq .Filter.Status "failed"}}selected{{end}}>failed</option>
+            <option value="skipped" {{if eq .Filter.Status "skipped"}}selected{{end}}>skipped</option>
+          </select>
+        </div>
+        <div>
+          <label>Resource</label>
+          <input name="resource" placeholder="namespace, gateways, membership" value="{{.Filter.Resource}}">
+        </div>
+        <div>
+          <label>Event Type</label>
+          <input name="eventType" placeholder="resource.apply" value="{{.Filter.EventType}}">
+        </div>
+        <div>
+          <label>Limit</label>
+          <input name="limit" type="number" min="1" max="500" value="{{.Filter.Limit}}">
+        </div>
+      </div>
+      <div class="actions">
+        <button type="submit">Apply Filters</button>
+        <a href="/organizations/{{.Slug}}/audit">Reset</a>
+      </div>
+    </form>
     <table class="audit-table">
       <thead>
         <tr>

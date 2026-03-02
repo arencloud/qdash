@@ -3,7 +3,7 @@
   {{range .Organizations}}
     <div class="card">
       <h3>{{.Name}}</h3>
-      <p>slug: {{.Slug}}</p>
+      <p class="muted">slug: <code>{{.Slug}}</code></p>
       <div class="actions">
         <a href="/organizations/{{.Slug}}/settings">Settings</a>
         <a href="/organizations/{{.Slug}}/rbac">RBAC</a>
@@ -13,7 +13,10 @@
       </div>
     </div>
   {{else}}
-    <div class="card empty">No organizations yet.</div>
+    <div class="card empty">
+      <h3>No Organizations Yet</h3>
+      <p>Create your first organization to unlock RBAC, OIDC mapping, resource CRUD, and audit views.</p>
+    </div>
   {{end}}
 </div>
 {{end}}

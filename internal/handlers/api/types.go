@@ -12,10 +12,10 @@ type CreateOrganizationRequest struct {
 }
 
 type CreateNamespaceRequest struct {
-	Name     string   `json:"name" binding:"required"`
-	Instance string   `json:"instance"`
-	Profile  string   `json:"profile"`
-	Labels   []string `json:"labels"`
+	Name           string   `json:"name" binding:"required"`
+	DiscoveryLabel string   `json:"discoveryLabel"`
+	RevisionTag    string   `json:"revisionTag"`
+	Labels         []string `json:"labels"`
 }
 
 type AdoptNamespaceRequest struct {

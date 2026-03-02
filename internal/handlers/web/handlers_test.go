@@ -103,7 +103,8 @@ func TestResourceNamespaceCreateClaimsOwnership(t *testing.T) {
 
 	form := url.Values{}
 	form.Set("name", "team-create")
-	form.Set("profile", "default")
+	form.Set("discovery_label", "default")
+	form.Set("revision_tag", "default")
 	req := httptest.NewRequest(http.MethodPost, "/organizations/"+org.Slug+"/resources/namespaces/create", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
@@ -133,7 +134,7 @@ func TestResourceNamespaceCreateUsesOrganizationDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create org: %v", err)
 	}
-	org.Settings = []byte(`{"defaultNamespaceInstance":"canary","defaultNamespaceProfile":"strict-mtls"}`)
+	org.Settings = []byte(`{"defaultIstioDiscoveryLabel":"default","defaultIstioRevisionTag":"canary"}`)
 	if err := db.Save(&org).Error; err != nil {
 		t.Fatalf("save org settings: %v", err)
 	}
@@ -158,11 +159,8 @@ func TestResourceNamespaceCreateUsesOrganizationDefaults(t *testing.T) {
 	if ns.Labels["istio.io/rev"] != "canary" {
 		t.Fatalf("expected istio.io/rev=canary, got %q", ns.Labels["istio.io/rev"])
 	}
-	if ns.Labels["istio-injection"] != "enabled" {
-		t.Fatalf("expected istio-injection=enabled, got %q", ns.Labels["istio-injection"])
-	}
-	if ns.Labels["security.istio.io/tlsMode"] != "istio" {
-		t.Fatalf("expected security.istio.io/tlsMode=istio, got %q", ns.Labels["security.istio.io/tlsMode"])
+	if ns.Labels["istio-discovery"] != "default" {
+		t.Fatalf("expected istio-discovery=default, got %q", ns.Labels["istio-discovery"])
 	}
 }
 
@@ -177,7 +175,7 @@ func TestResourceNamespaceCreateRequestOverridesOrganizationDefaults(t *testing.
 	if err != nil {
 		t.Fatalf("create org: %v", err)
 	}
-	org.Settings = []byte(`{"defaultNamespaceInstance":"canary","defaultNamespaceProfile":"strict-mtls"}`)
+	org.Settings = []byte(`{"defaultIstioDiscoveryLabel":"default","defaultIstioRevisionTag":"canary"}`)
 	if err := db.Save(&org).Error; err != nil {
 		t.Fatalf("save org settings: %v", err)
 	}
@@ -185,8 +183,8 @@ func TestResourceNamespaceCreateRequestOverridesOrganizationDefaults(t *testing.
 
 	form := url.Values{}
 	form.Set("name", "team-create-override")
-	form.Set("instance", "default")
-	form.Set("profile", "ambient")
+	form.Set("discovery_label", "mesh-a")
+	form.Set("revision_tag", "prod-stable")
 	req := httptest.NewRequest(http.MethodPost, "/organizations/"+org.Slug+"/resources/namespaces/create", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
@@ -201,14 +199,14 @@ func TestResourceNamespaceCreateRequestOverridesOrganizationDefaults(t *testing.
 	if err != nil {
 		t.Fatalf("load created namespace: %v", err)
 	}
-	if ns.Labels["istio.io/rev"] != "default" {
-		t.Fatalf("expected istio.io/rev=default, got %q", ns.Labels["istio.io/rev"])
+	if ns.Labels["istio.io/rev"] != "prod-stable" {
+		t.Fatalf("expected istio.io/rev=prod-stable, got %q", ns.Labels["istio.io/rev"])
 	}
-	if ns.Labels["istio.io/dataplane-mode"] != "ambient" {
-		t.Fatalf("expected istio.io/dataplane-mode=ambient, got %q", ns.Labels["istio.io/dataplane-mode"])
+	if ns.Labels["istio-discovery"] != "mesh-a" {
+		t.Fatalf("expected istio-discovery=mesh-a, got %q", ns.Labels["istio-discovery"])
 	}
-	if _, ok := ns.Labels["security.istio.io/tlsMode"]; ok {
-		t.Fatalf("did not expect strict mtls label with ambient override: %+v", ns.Labels)
+	if ns.Labels["istio.io/rev"] == "canary" {
+		t.Fatalf("did not expect canary revision after explicit override: %+v", ns.Labels)
 	}
 }
 
@@ -335,7 +333,8 @@ func TestNamespacePanelRefreshAfterCreate(t *testing.T) {
 
 	form := url.Values{}
 	form.Set("name", "team-refresh")
-	form.Set("profile", "default")
+	form.Set("discovery_label", "default")
+	form.Set("revision_tag", "default")
 	req := httptest.NewRequest(http.MethodPost, "/organizations/"+org.Slug+"/resources/namespaces/create", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	res := httptest.NewRecorder()

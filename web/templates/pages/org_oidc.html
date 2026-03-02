@@ -1,12 +1,36 @@
 {{define "org_oidc"}}
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>OIDC</title><link rel="stylesheet" href="/static/css/app.css"></head>
-<body><main class="shell">
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OIDC</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+  <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+</head>
+<body>
+<div class="bg-orb orb-1"></div>
+<div class="bg-orb orb-2"></div>
+<main class="shell">
+  <section class="topbar">
+    <a class="brandmark" href="/">QDash</a>
+    <div class="top-actions">
+      <a class="btn ghost" href="/organizations/{{.Slug}}/settings">Org Settings</a>
+    </div>
+  </section>
   <section class="hero compact"><h1>OIDC Mapping</h1><p>Organization: {{.Slug}}</p></section>
+  <section class="tabs">
+    <a class="tab" href="/organizations/{{.Slug}}/settings">Settings</a>
+    <a class="tab" href="/organizations/{{.Slug}}/rbac">RBAC</a>
+    <a class="tab active" href="/organizations/{{.Slug}}/oidc">OIDC</a>
+    <a class="tab" href="/organizations/{{.Slug}}/resources">Resources</a>
+    <a class="tab" href="/organizations/{{.Slug}}/audit">Audit</a>
+  </section>
   <section id="oidc-feedback"></section>
 
   <section class="card">
     <h3>Provider Configuration</h3>
+    <p class="muted">Use claim names exactly as returned by your identity provider tokens.</p>
     <form hx-post="/organizations/{{.Slug}}/oidc/config" hx-target="#oidc-feedback" hx-swap="innerHTML">
       <label>Issuer URL</label>
       <input name="issuer_url" value="{{.Config.IssuerURL}}" placeholder="https://sso.example.com/realms/platform" required>
@@ -37,6 +61,7 @@
 
   <section class="card">
     <h3>Create OIDC Mapping</h3>
+    <p class="muted">Map external identity subjects to org roles. Highest matched role wins.</p>
     <form hx-post="/organizations/{{.Slug}}/oidc/mappings" hx-target="#oidc-feedback" hx-swap="innerHTML">
       <div class="grid two">
         <div>
@@ -89,10 +114,12 @@
         </td>
       </tr>
       {{else}}
-      <tr><td colspan="5">No mappings configured.</td></tr>
+      <tr><td colspan="5">No mappings configured. Add one mapping above to auto-provision org access on login.</td></tr>
       {{end}}
       </tbody>
     </table>
   </section>
-</main></body></html>
+</main>
+</body>
+</html>
 {{end}}

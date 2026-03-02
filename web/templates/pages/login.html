@@ -8,18 +8,33 @@
   <link rel="stylesheet" href="/static/css/app.css">
 </head>
 <body>
-  <main class="shell">
-    <section class="hero compact">
-      <h1>Sign In</h1>
-      <p>Use email login for local development access.</p>
-    </section>
-    <section class="card" style="max-width:420px">
-      {{if .Error}}<div class="flash">{{.Error}}</div>{{end}}
-      {{if .OIDCEnabled}}
-      <a class="btn" href="/auth/oidc/start">Sign in with OIDC</a>
-      {{else}}
-      <p>OIDC is not configured. Set `OIDC_*` env vars and restart.</p>
-      {{end}}
+  <div class="bg-orb orb-1"></div>
+  <div class="bg-orb orb-2"></div>
+  <main class="shell login-shell">
+    <section class="login-wrap">
+      <section class="login-brand">
+        <p class="eyebrow">QDash Control Plane</p>
+        <h1>Secure Access<br>To Multi-Tenant Gateway Ops</h1>
+        <p class="lead">Manage organizations, policy resources, and namespace ownership through one operator-focused dashboard.</p>
+        <div class="login-points">
+          <p><span class="dot"></span>Service-account driven cluster access</p>
+          <p><span class="dot"></span>Organization-scoped RBAC and audit</p>
+          <p><span class="dot"></span>OIDC mapped users, groups, and roles</p>
+        </div>
+      </section>
+
+      <section class="login-card">
+        <h2>Sign In</h2>
+        <p>Use your identity provider account to continue.</p>
+        {{if .Error}}<div class="flash">{{.Error}}</div>{{end}}
+
+        {{if .OIDCEnabled}}
+        <a class="btn login-btn" href="/auth/oidc/start">Continue With OIDC</a>
+        <p class="hint">You will be redirected to your configured OIDC provider.</p>
+        {{else}}
+        <div class="flash">OIDC is not configured. Set `OIDC_*` env vars and restart.</div>
+        {{end}}
+      </section>
     </section>
   </main>
 </body>

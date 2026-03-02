@@ -1,8 +1,31 @@
 {{define "org_settings"}}
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Org Settings</title><link rel="stylesheet" href="/static/css/app.css"></head>
-<body><main class="shell">
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Org Settings</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+  <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+</head>
+<body>
+<div class="bg-orb orb-1"></div>
+<div class="bg-orb orb-2"></div>
+<main class="shell">
+  <section class="topbar">
+    <a class="brandmark" href="/">QDash</a>
+    <div class="top-actions">
+      <a class="btn ghost" href="/resources">API Center</a>
+    </div>
+  </section>
   <section class="hero compact"><h1>Organization Settings</h1><p>Organization: {{.Slug}}</p></section>
+  <section class="tabs">
+    <a class="tab active" href="/organizations/{{.Slug}}/settings">Settings</a>
+    <a class="tab" href="/organizations/{{.Slug}}/rbac">RBAC</a>
+    <a class="tab" href="/organizations/{{.Slug}}/oidc">OIDC</a>
+    <a class="tab" href="/organizations/{{.Slug}}/resources">Resources</a>
+    <a class="tab" href="/organizations/{{.Slug}}/audit">Audit</a>
+  </section>
 
   <section id="settings-feedback"></section>
   <section class="card">
@@ -13,14 +36,6 @@
       <label>Description</label>
       <textarea name="description" rows="4" placeholder="Describe the organization">{{.Description}}</textarea>
       <div class="grid three">
-        <div>
-          <label>Default Namespace Profile</label>
-          <input name="default_namespace_profile" value="{{index .Settings "defaultNamespaceProfile"}}" placeholder="default">
-        </div>
-        <div>
-          <label>Default Istio Instance</label>
-          <input name="default_namespace_instance" value="{{index .Settings "defaultNamespaceInstance"}}" placeholder="default">
-        </div>
         <div>
           <label>Contact Email</label>
           <input name="contact_email" value="{{index .Settings "contactEmail"}}" placeholder="platform@example.com">
@@ -39,5 +54,7 @@
     <div class="card"><h3>RBAC</h3><p>Manage users, groups and custom permissions.</p><a href="/organizations/{{.Slug}}/rbac">Open RBAC</a></div>
     <div class="card"><h3>Audit Log</h3><p>Review mapping and access events.</p><a href="/organizations/{{.Slug}}/audit">Open Audit</a></div>
   </section>
-</main></body></html>
+</main>
+</body>
+</html>
 {{end}}

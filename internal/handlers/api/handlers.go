@@ -219,11 +219,25 @@ func (h *Handler) listGatewayClasses(c *gin.Context) {
 }
 
 func (h *Handler) listIstioProfiles(c *gin.Context) {
-	c.JSON(http.StatusOK, service.NamespaceProfiles())
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 20*time.Second)
+	defer cancel()
+	_, revisions, err := h.kubeSvc.DiscoverIstioLabels(ctx)
+	if err != nil {
+		c.JSON(http.StatusBadGateway, ErrorResponse{Error: err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, revisions)
 }
 
 func (h *Handler) listIstioInstances(c *gin.Context) {
-	c.JSON(http.StatusOK, service.NamespaceInstances())
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 20*time.Second)
+	defer cancel()
+	discovery, _, err := h.kubeSvc.DiscoverIstioLabels(ctx)
+	if err != nil {
+		c.JSON(http.StatusBadGateway, ErrorResponse{Error: err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, discovery)
 }
 
 func (h *Handler) listNamespaces(c *gin.Context) {
@@ -258,45 +272,46 @@ func (h *Handler) createNamespace(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 20*time.Second)
 	defer cancel()
 
-	defaultInstance := ""
-	defaultProfile := ""
+	defaultDiscovery := ""
+	defaultRevision := ""
 	if len(org.Settings) > 0 {
 		settings := map[string]any{}
 		if err := json.Unmarshal(org.Settings, &settings); err == nil {
-			if v, ok := settings["defaultNamespaceInstance"].(string); ok {
-				defaultInstance = strings.TrimSpace(v)
+			if v, ok := settings["defaultIstioDiscoveryLabel"].(string); ok {
+				defaultDiscovery = strings.TrimSpace(v)
 			}
-			if v, ok := settings["defaultNamespaceProfile"].(string); ok {
-				defaultProfile = strings.TrimSpace(v)
+			if v, ok := settings["defaultIstioRevisionTag"].(string); ok {
+				defaultRevision = strings.TrimSpace(v)
 			}
 		}
 	}
-	if req.Instance == "" {
-		req.Instance = defaultInstance
+	if req.DiscoveryLabel == "" {
+		req.DiscoveryLabel = defaultDiscovery
 	}
-	if req.Profile == "" {
-		req.Profile = defaultProfile
+	if req.RevisionTag == "" {
+		req.RevisionTag = defaultRevision
 	}
-	if req.Profile == "" {
-		req.Profile = "default"
+	if req.DiscoveryLabel == "" || req.RevisionTag == "" {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Error: "discoveryLabel and revisionTag are required"})
+		return
 	}
-	if req.Instance == "" {
-		req.Instance = "default"
+	labels := map[string]string{
+		"istio-discovery": strings.TrimSpace(req.DiscoveryLabel),
+		"istio.io/rev":    strings.TrimSpace(req.RevisionTag),
 	}
-	extra := map[string]string{}
 	for _, kv := range req.Labels {
 		parts := strings.SplitN(kv, "=", 2)
 		if len(parts) != 2 {
 			continue
 		}
-		extra[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
+		labels[strings.TrimSpace(parts[0])] = strings.TrimSpace(parts[1])
 	}
-	if err := h.kubeSvc.CreateNamespace(ctx, req.Name, req.Instance, req.Profile, extra); err != nil {
+	if err := h.kubeSvc.CreateNamespace(ctx, req.Name, labels); err != nil {
 		_ = h.rbac.RecordAuditEvent(org.ID, user.ID, "namespace.create.failed", "namespace", "failed", "namespace creation failed", map[string]any{
-			"namespace": req.Name,
-			"instance":  req.Instance,
-			"profile":   req.Profile,
-			"error":     err.Error(),
+			"namespace":      req.Name,
+			"discoveryLabel": req.DiscoveryLabel,
+			"revisionTag":    req.RevisionTag,
+			"error":          err.Error(),
 		})
 		c.JSON(http.StatusBadGateway, ErrorResponse{Error: err.Error()})
 		return
@@ -310,9 +325,9 @@ func (h *Handler) createNamespace(c *gin.Context) {
 		return
 	}
 	_ = h.rbac.RecordAuditEvent(org.ID, user.ID, "namespace.create", "namespace", "success", "namespace created and claimed", map[string]any{
-		"namespace": req.Name,
-		"instance":  req.Instance,
-		"profile":   req.Profile,
+		"namespace":      req.Name,
+		"discoveryLabel": req.DiscoveryLabel,
+		"revisionTag":    req.RevisionTag,
 	})
 	c.JSON(http.StatusCreated, statusResponse{Status: "created"})
 }

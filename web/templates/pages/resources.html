@@ -1,5 +1,32 @@
 {{define "resources"}}
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Resources</title><link rel="stylesheet" href="/static/css/app.css"></head>
-<body><main class="shell"><section class="hero compact"><h1>Resource Center</h1><p>GatewayAPI + Kuadrant policy operations. Use org-scoped routes: <code>/api/v1/orgs/:orgSlug/...</code></p></section><section class="grid two"><div class="card"><h3>Gateway CRUD</h3><p><code>GET/POST/DELETE /api/v1/orgs/:orgSlug/gateways</code></p><p>Namespace is required and must be owned by org.</p></div><div class="card"><h3>HTTPRoute CRUD</h3><p><code>GET/POST/DELETE /api/v1/orgs/:orgSlug/httproutes</code></p><p>Namespace is required and must be owned by org.</p></div><div class="card"><h3>AuthPolicy CRUD</h3><p><code>GET/POST/DELETE /api/v1/orgs/:orgSlug/authpolicies</code></p><p>Namespace is required and must be owned by org.</p></div><div class="card"><h3>RateLimitPolicy CRUD</h3><p><code>GET/POST/DELETE /api/v1/orgs/:orgSlug/ratelimitpolicies</code></p><p>Namespace is required and must be owned by org.</p></div><div class="card"><h3>Gateway Classes</h3><p><code>GET /api/v1/orgs/:orgSlug/gatewayclasses</code></p></div><div class="card"><h3>Namespace + Istio labels</h3><p><code>POST /api/v1/orgs/:orgSlug/namespaces</code></p><p>Creates namespace and binds ownership to org.</p></div></section></main></body></html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Resources</title>
+  <link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+<div class="bg-orb orb-1"></div>
+<div class="bg-orb orb-2"></div>
+<main class="shell">
+<section class="topbar">
+  <a class="brandmark" href="/">QDash</a>
+</section>
+<section class="hero compact">
+  <h1>Resource Center</h1>
+  <p>GatewayAPI + Kuadrant policy operations. Use org-scoped routes: <code>/api/v1/orgs/:orgSlug/...</code></p>
+</section>
+<section class="grid two">
+  <div class="card"><h3>Gateway CRUD</h3><p><code>GET/POST/DELETE /api/v1/orgs/:orgSlug/gateways</code></p><p>Namespace is required and must be owned by org.</p></div>
+  <div class="card"><h3>HTTPRoute CRUD</h3><p><code>GET/POST/DELETE /api/v1/orgs/:orgSlug/httproutes</code></p><p>Namespace is required and must be owned by org.</p></div>
+  <div class="card"><h3>AuthPolicy CRUD</h3><p><code>GET/POST/DELETE /api/v1/orgs/:orgSlug/authpolicies</code></p><p>Namespace is required and must be owned by org.</p></div>
+  <div class="card"><h3>RateLimitPolicy CRUD</h3><p><code>GET/POST/DELETE /api/v1/orgs/:orgSlug/ratelimitpolicies</code></p><p>Namespace is required and must be owned by org.</p></div>
+  <div class="card"><h3>Gateway Classes</h3><p><code>GET /api/v1/orgs/:orgSlug/gatewayclasses</code></p></div>
+  <div class="card"><h3>Namespace + Istio labels</h3><p><code>POST /api/v1/orgs/:orgSlug/namespaces</code></p><p>Creates namespace and binds ownership to org.</p></div>
+</section>
+</main>
+</body>
+</html>
 {{end}}

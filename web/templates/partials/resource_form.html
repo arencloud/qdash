@@ -1,89 +1,113 @@
 {{define "resource_form"}}
 {{if eq .Param "gateways"}}
-<label>Gateway Class</label>
-<select id="gateway_class-{{.Param}}" name="gateway_class" required>
-  <option value="">select gateway class</option>
-  {{range .GatewayClasses}}<option value="{{.}}">{{.}}</option>{{end}}
-</select>
-<label>Gateway Class Override (optional)</label>
-<input id="gateway_class_custom-{{.Param}}" name="gateway_class_custom" placeholder="custom class if not listed">
-<label>Listener Name</label>
-<input id="listener_name-{{.Param}}" name="listener_name" placeholder="http" required>
-<div class="grid two">
-  <div>
-    <label>Protocol</label>
-    <input id="protocol-{{.Param}}" name="protocol" value="HTTP" required>
-  </div>
-  <div>
-    <label>Port</label>
-    <input id="port-{{.Param}}" name="port" type="number" value="80" required>
-  </div>
+<div class="field-group">
+  <h4>Gateway Class</h4>
+  <p class="muted">Choose class discovered from cluster, or provide a custom class.</p>
+  <label>Gateway Class</label>
+  <select id="gateway_class-{{.Param}}" name="gateway_class" required>
+    <option value="">select gateway class</option>
+    {{range .GatewayClasses}}<option value="{{.}}">{{.}}</option>{{end}}
+  </select>
+  <label>Gateway Class Override (optional)</label>
+  <input id="gateway_class_custom-{{.Param}}" name="gateway_class_custom" placeholder="custom class if not listed">
 </div>
-<label>Hostname (optional)</label>
-<input id="hostname-{{.Param}}" name="hostname" placeholder="api.example.com">
+<div class="field-group">
+  <h4>Listener</h4>
+  <label>Listener Name</label>
+  <input id="listener_name-{{.Param}}" name="listener_name" placeholder="http" required>
+  <div class="grid two">
+    <div>
+      <label>Protocol</label>
+      <input id="protocol-{{.Param}}" name="protocol" value="HTTP" required>
+    </div>
+    <div>
+      <label>Port</label>
+      <input id="port-{{.Param}}" name="port" type="number" value="80" required>
+    </div>
+  </div>
+  <label>Hostname (optional)</label>
+  <input id="hostname-{{.Param}}" name="hostname" placeholder="api.example.com">
+</div>
 {{end}}
 
 {{if eq .Param "httproutes"}}
-<label>Parent Gateway</label>
-<input id="parent_gateway-{{.Param}}" name="parent_gateway" placeholder="main-gateway" required>
-<label>Hostnames CSV (optional)</label>
-<input id="hostnames-{{.Param}}" name="hostnames" placeholder="api.example.com,internal.example.com">
-<label>Path Prefix</label>
-<input id="path_prefix-{{.Param}}" name="path_prefix" value="/" required>
-<div class="grid two">
-  <div>
-    <label>Backend Service</label>
-    <input id="backend_service-{{.Param}}" name="backend_service" placeholder="backend-svc" required>
-  </div>
-  <div>
-    <label>Backend Port</label>
-    <input id="backend_port-{{.Param}}" name="backend_port" type="number" value="8080" required>
+<div class="field-group">
+  <h4>Routing</h4>
+  <label>Parent Gateway</label>
+  <input id="parent_gateway-{{.Param}}" name="parent_gateway" placeholder="main-gateway" required>
+  <label>Hostnames CSV (optional)</label>
+  <input id="hostnames-{{.Param}}" name="hostnames" placeholder="api.example.com,internal.example.com">
+  <label>Path Prefix</label>
+  <input id="path_prefix-{{.Param}}" name="path_prefix" value="/" required>
+</div>
+<div class="field-group">
+  <h4>Backend</h4>
+  <div class="grid two">
+    <div>
+      <label>Backend Service</label>
+      <input id="backend_service-{{.Param}}" name="backend_service" placeholder="backend-svc" required>
+    </div>
+    <div>
+      <label>Backend Port</label>
+      <input id="backend_port-{{.Param}}" name="backend_port" type="number" value="8080" required>
+    </div>
   </div>
 </div>
 {{end}}
 
 {{if eq .Param "authpolicies"}}
-<div class="grid two">
-  <div>
-    <label>Target Kind</label>
-    <input id="target_kind-{{.Param}}" name="target_kind" value="HTTPRoute" required>
+<div class="field-group">
+  <h4>Target</h4>
+  <div class="grid two">
+    <div>
+      <label>Target Kind</label>
+      <input id="target_kind-{{.Param}}" name="target_kind" value="HTTPRoute" required>
+    </div>
+    <div>
+      <label>Target Name</label>
+      <input id="target_name-{{.Param}}" name="target_name" placeholder="my-route" required>
+    </div>
   </div>
-  <div>
-    <label>Target Name</label>
-    <input id="target_name-{{.Param}}" name="target_name" placeholder="my-route" required>
-  </div>
+  <label>Rules JSON (optional)</label>
+  <textarea id="auth_rules_json-{{.Param}}" name="auth_rules_json" rows="6" placeholder='{"authentication":{}}'></textarea>
 </div>
-<label>Rules JSON (optional)</label>
-<textarea id="auth_rules_json-{{.Param}}" name="auth_rules_json" rows="6" placeholder='{"authentication":{}}'></textarea>
 {{end}}
 
 {{if eq .Param "ratelimitpolicies"}}
-<div class="grid two">
-  <div>
-    <label>Target Kind</label>
-    <input id="target_kind-{{.Param}}" name="target_kind" value="HTTPRoute" required>
+<div class="field-group">
+  <h4>Target</h4>
+  <div class="grid two">
+    <div>
+      <label>Target Kind</label>
+      <input id="target_kind-{{.Param}}" name="target_kind" value="HTTPRoute" required>
+    </div>
+    <div>
+      <label>Target Name</label>
+      <input id="target_name-{{.Param}}" name="target_name" placeholder="my-route" required>
+    </div>
   </div>
-  <div>
-    <label>Target Name</label>
-    <input id="target_name-{{.Param}}" name="target_name" placeholder="my-route" required>
-  </div>
-</div>
-<div class="grid three">
-  <div>
-    <label>Limit Name</label>
-    <input id="limit_name-{{.Param}}" name="limit_name" value="default" required>
-  </div>
-  <div>
-    <label>Limit Count</label>
-    <input id="limit_count-{{.Param}}" name="limit_count" type="number" value="100" required>
-  </div>
-  <div>
-    <label>Window</label>
-    <input id="limit_window-{{.Param}}" name="limit_window" value="1m" required>
+  <h4>Limit Rule</h4>
+  <div class="grid three">
+    <div>
+      <label>Limit Name</label>
+      <input id="limit_name-{{.Param}}" name="limit_name" value="default" required>
+    </div>
+    <div>
+      <label>Limit Count</label>
+      <input id="limit_count-{{.Param}}" name="limit_count" type="number" value="100" required>
+    </div>
+    <div>
+      <label>Window</label>
+      <input id="limit_window-{{.Param}}" name="limit_window" value="1m" required>
+    </div>
   </div>
 </div>
 {{end}}
 
-<label>Advanced Spec JSON Override (optional)</label>
-<textarea id="spec_json-{{.Param}}" name="spec_json" rows="6" placeholder="Leave empty to use form fields"></textarea>
+<div class="field-group">
+  <h4>Advanced Override</h4>
+  <p class="muted">Optional: when set, this JSON replaces the form fields above.</p>
+  <label>Advanced Spec JSON Override (optional)</label>
+  <textarea id="spec_json-{{.Param}}" name="spec_json" rows="6" placeholder="Leave empty to use form fields"></textarea>
+</div>
 {{end}}

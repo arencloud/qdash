@@ -3,6 +3,8 @@ package kube
 import (
 	"context"
 	"fmt"
+	"sort"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -90,6 +92,61 @@ func (s *ResourceService) NamespaceExists(ctx context.Context, name string) (boo
 		return false, nil
 	}
 	return false, err
+}
+
+func (s *ResourceService) DiscoverIstioLabels(ctx context.Context) ([]string, []string, error) {
+	discoverySet := map[string]bool{}
+	revSet := map[string]bool{}
+
+	nsList, err := s.client.Core.CoreV1().Namespaces().List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, ns := range nsList.Items {
+		v := strings.TrimSpace(ns.Labels["istio-discovery"])
+		if v != "" {
+			discoverySet[v] = true
+		}
+		rev := strings.TrimSpace(ns.Labels["istio.io/rev"])
+		if rev != "" {
+			revSet[rev] = true
+		}
+	}
+
+	// Best-effort enrich from Istio mutating webhook objects (includes revision tags in names).
+	mwList, mwErr := s.client.Core.AdmissionregistrationV1().MutatingWebhookConfigurations().List(ctx, metav1.ListOptions{})
+	if mwErr == nil {
+		for _, mw := range mwList.Items {
+			if rev := strings.TrimSpace(mw.Labels["istio.io/rev"]); rev != "" {
+				revSet[rev] = true
+			}
+			if strings.HasPrefix(mw.Name, "istio-revision-tag-") {
+				tag := strings.TrimSpace(strings.TrimPrefix(mw.Name, "istio-revision-tag-"))
+				if tag != "" {
+					revSet[tag] = true
+				}
+			}
+		}
+	}
+
+	if len(discoverySet) == 0 {
+		discoverySet["default"] = true
+	}
+	if len(revSet) == 0 {
+		revSet["default"] = true
+	}
+
+	discovery := make([]string, 0, len(discoverySet))
+	for v := range discoverySet {
+		discovery = append(discovery, v)
+	}
+	rev := make([]string, 0, len(revSet))
+	for v := range revSet {
+		rev = append(rev, v)
+	}
+	sort.Strings(discovery)
+	sort.Strings(rev)
+	return discovery, rev, nil
 }
 
 func NamespaceIstioInstances() map[string]map[string]string {
