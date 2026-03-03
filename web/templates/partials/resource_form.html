@@ -12,21 +12,152 @@
   <input id="gateway_class_custom-{{.Param}}" name="gateway_class_custom" placeholder="custom class if not listed">
 </div>
 <div class="field-group">
-  <h4>Listener</h4>
-  <label>Listener Name</label>
-  <input id="listener_name-{{.Param}}" name="listener_name" placeholder="http" required>
-  <div class="grid two">
-    <div>
-      <label>Protocol</label>
-      <input id="protocol-{{.Param}}" name="protocol" value="HTTP" required>
-    </div>
-    <div>
-      <label>Port</label>
-      <input id="port-{{.Param}}" name="port" type="number" value="80" required>
-    </div>
-  </div>
-  <label>Hostname (optional)</label>
-  <input id="hostname-{{.Param}}" name="hostname" placeholder="api.example.com">
+  <h4>Listeners</h4>
+  <p class="muted">Add one or more listeners. HTTPS/TLS listeners can reference certificate secrets.</p>
+  <div id="gateway-listeners-{{.Param}}" class="listener-list"></div>
+  <button type="button" class="btn ghost listener-add-btn" onclick="window.qdashGatewayAddListener('{{.Param}}')">+ Add Listener</button>
+  <template id="gateway-listener-template-{{.Param}}">
+    <article class="listener-card" data-listener-card>
+      <div class="listener-head">
+        <h5>Listener <span data-listener-index></span></h5>
+        <button type="button" class="btn ghost listener-remove-btn" data-remove-listener>Remove</button>
+      </div>
+      <div class="grid two">
+        <div>
+          <label>Name</label>
+          <input name="listener_name[]" placeholder="http" required>
+        </div>
+        <div>
+          <label>Protocol</label>
+          <select name="listener_protocol[]" data-listener-protocol required>
+            <option value="HTTP">HTTP</option>
+            <option value="HTTPS">HTTPS</option>
+            <option value="TLS">TLS</option>
+            <option value="TCP">TCP</option>
+          </select>
+        </div>
+        <div>
+          <label>Port</label>
+          <input name="listener_port[]" type="number" value="80" min="1" max="65535" required>
+        </div>
+        <div>
+          <label>Hostname (optional)</label>
+          <input name="listener_hostname[]" placeholder="api.example.com">
+        </div>
+      </div>
+      <section class="listener-tls" data-listener-tls hidden>
+        <h6>TLS Certificate</h6>
+        <div class="grid three">
+          <div>
+            <label>Certificate Name</label>
+            <input name="listener_cert_name[]" placeholder="gateway-cert">
+          </div>
+          <div>
+            <label>Kind</label>
+            <input name="listener_cert_kind[]" value="Secret" placeholder="Secret">
+          </div>
+          <div>
+            <label>Group (optional)</label>
+            <input name="listener_cert_group[]" placeholder="">
+          </div>
+        </div>
+      </section>
+    </article>
+  </template>
+  <script>
+  (function(){
+    if (!window.qdashGatewayAddListener) {
+      function toggleTLS(card){
+        var protocol = card.querySelector('[data-listener-protocol]');
+        var tls = card.querySelector('[data-listener-tls]');
+        if(!protocol || !tls) return;
+        var value = (protocol.value || '').toUpperCase();
+        tls.hidden = !(value === 'HTTPS' || value === 'TLS');
+      }
+
+      function renumber(kind){
+        var container = document.getElementById('gateway-listeners-' + kind);
+        if(!container) return;
+        var cards = container.querySelectorAll('[data-listener-card]');
+        cards.forEach(function(card, idx){
+          var label = card.querySelector('[data-listener-index]');
+          if(label) label.textContent = String(idx + 1);
+          var removeBtn = card.querySelector('[data-remove-listener]');
+          if(removeBtn) removeBtn.disabled = cards.length <= 1;
+        });
+      }
+
+      window.qdashGatewayAddListener = function(kind, preset){
+        var container = document.getElementById('gateway-listeners-' + kind);
+        var tpl = document.getElementById('gateway-listener-template-' + kind);
+        if(!container || !tpl) return;
+        var fragment = tpl.content.cloneNode(true);
+        var card = fragment.querySelector('[data-listener-card]');
+        if(!card) return;
+        var setVal = function(name, val){
+          var el = card.querySelector('[name=\"' + name + '\"]');
+          if(el && typeof val === 'string') el.value = val;
+        };
+        setVal('listener_name[]', preset && preset.name ? String(preset.name) : 'http');
+        setVal('listener_protocol[]', preset && preset.protocol ? String(preset.protocol) : 'HTTP');
+        setVal('listener_port[]', preset && preset.port ? String(preset.port) : '80');
+        setVal('listener_hostname[]', preset && preset.hostname ? String(preset.hostname) : '');
+        setVal('listener_cert_name[]', preset && preset.certName ? String(preset.certName) : '');
+        setVal('listener_cert_kind[]', preset && preset.certKind ? String(preset.certKind) : 'Secret');
+        setVal('listener_cert_group[]', preset && preset.certGroup ? String(preset.certGroup) : '');
+
+        var protocolSelect = card.querySelector('[data-listener-protocol]');
+        if(protocolSelect){
+          protocolSelect.addEventListener('change', function(){ toggleTLS(card); });
+        }
+        var removeBtn = card.querySelector('[data-remove-listener]');
+        if(removeBtn){
+          removeBtn.addEventListener('click', function(){
+            card.remove();
+            renumber(kind);
+          });
+        }
+        container.appendChild(card);
+        toggleTLS(card);
+        renumber(kind);
+      };
+
+      window.qdashGatewayLoadListeners = function(kind, listenersJSON){
+        var container = document.getElementById('gateway-listeners-' + kind);
+        if(!container) return;
+        container.innerHTML = '';
+        var listeners = [];
+        try {
+          listeners = JSON.parse(listenersJSON);
+        } catch(e) {
+          listeners = [];
+        }
+        if(!Array.isArray(listeners) || listeners.length === 0){
+          window.qdashGatewayAddListener(kind);
+          return;
+        }
+        listeners.forEach(function(l){
+          var cert = null;
+          if(l && l.tls && Array.isArray(l.tls.certificateRefs) && l.tls.certificateRefs.length > 0){
+            cert = l.tls.certificateRefs[0];
+          }
+          window.qdashGatewayAddListener(kind, {
+            name: l && l.name ? String(l.name) : '',
+            protocol: l && l.protocol ? String(l.protocol) : 'HTTP',
+            port: l && l.port ? String(l.port) : '80',
+            hostname: l && l.hostname ? String(l.hostname) : '',
+            certName: cert && cert.name ? String(cert.name) : '',
+            certKind: cert && cert.kind ? String(cert.kind) : 'Secret',
+            certGroup: cert && cert.group ? String(cert.group) : ''
+          });
+        });
+      };
+    }
+    if(typeof window.qdashGatewayLoadListeners === 'function'){
+      window.qdashGatewayLoadListeners('{{.Param}}', '[]');
+    }
+  })();
+  </script>
 </div>
 {{end}}
 

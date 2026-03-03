@@ -3,6 +3,7 @@
 <script>
 (function(){
   var kind = {{printf "%q" .KindParam}};
+  var listenersJSON = {{printf "%q" (index .FieldValues "listeners_json")}};
   var set = function(id, val){
     var el = document.getElementById(id + '-' + kind);
     if(!el) return;
@@ -11,6 +12,9 @@
   };
   set('name', {{printf "%q" .Name}});
   set('spec_json', {{printf "%q" .AdvancedJSON}});
+  if(kind === 'gateways' && typeof window.qdashGatewayLoadListeners === 'function' && listenersJSON){
+    window.qdashGatewayLoadListeners(kind, listenersJSON);
+  }
   {{range $k, $v := .FieldValues}}
   set({{printf "%q" $k}}, {{printf "%q" $v}});
   {{end}}

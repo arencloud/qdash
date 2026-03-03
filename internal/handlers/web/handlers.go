@@ -1525,38 +1525,116 @@ func buildGatewaySpec(c *gin.Context) (map[string]any, validationErrors, error) 
 	if customClass := strings.TrimSpace(c.PostForm("gateway_class_custom")); customClass != "" {
 		gatewayClass = customClass
 	}
-	listenerName := strings.TrimSpace(c.PostForm("listener_name"))
-	hostname := strings.TrimSpace(c.PostForm("hostname"))
-	protocol := strings.TrimSpace(c.PostForm("protocol"))
-	port, portErr := parseIntField(c.PostForm("port"), "port")
 	errs := validationErrors{}
 	if gatewayClass == "" {
 		errs.add("gateway_class", "is required")
 	}
-	if listenerName == "" {
-		errs.add("listener_name", "is required")
+
+	names := gatewayFieldArray(c, "listener_name[]", "listener_name")
+	protocols := gatewayFieldArray(c, "listener_protocol[]", "protocol")
+	ports := gatewayFieldArray(c, "listener_port[]", "port")
+	hostnames := gatewayFieldArray(c, "listener_hostname[]", "hostname")
+	certNames := gatewayFieldArray(c, "listener_cert_name[]", "")
+	certKinds := gatewayFieldArray(c, "listener_cert_kind[]", "")
+	certGroups := gatewayFieldArray(c, "listener_cert_group[]", "")
+
+	maxItems := maxLen(names, protocols, ports, hostnames, certNames, certKinds, certGroups)
+	listeners := make([]any, 0, maxItems)
+	for i := 0; i < maxItems; i++ {
+		name := at(names, i)
+		protocol := strings.ToUpper(at(protocols, i))
+		portRaw := at(ports, i)
+		hostname := at(hostnames, i)
+		certName := at(certNames, i)
+		certKind := at(certKinds, i)
+		certGroup := at(certGroups, i)
+
+		if name == "" && protocol == "" && portRaw == "" && hostname == "" && certName == "" {
+			continue
+		}
+		if name == "" {
+			errs.add(fmt.Sprintf("listeners[%d].name", i), "is required")
+		}
+		if protocol == "" {
+			errs.add(fmt.Sprintf("listeners[%d].protocol", i), "is required")
+		}
+		port, portErr := parseIntField(portRaw, "port")
+		if portErr != "" {
+			errs.add(fmt.Sprintf("listeners[%d].port", i), portErr)
+		}
+
+		listener := map[string]any{
+			"name":     name,
+			"port":     port,
+			"protocol": protocol,
+		}
+		if hostname != "" {
+			listener["hostname"] = hostname
+		}
+		if protocol == "HTTPS" || protocol == "TLS" {
+			if certName == "" {
+				errs.add(fmt.Sprintf("listeners[%d].certificate", i), "certificate name is required for HTTPS/TLS")
+			} else {
+				if certKind == "" {
+					certKind = "Secret"
+				}
+				certRef := map[string]any{
+					"name": certName,
+					"kind": certKind,
+				}
+				if certGroup != "" {
+					certRef["group"] = certGroup
+				}
+				listener["tls"] = map[string]any{
+					"mode":            "Terminate",
+					"certificateRefs": []any{certRef},
+				}
+			}
+		}
+		listeners = append(listeners, listener)
 	}
-	if protocol == "" {
-		errs.add("protocol", "is required")
-	}
-	if portErr != "" {
-		errs.add("port", portErr)
+
+	if len(listeners) == 0 {
+		errs.add("listeners", "at least one listener is required")
 	}
 	if errs.any() {
 		return nil, errs, nil
 	}
-	listener := map[string]any{
-		"name":     listenerName,
-		"port":     port,
-		"protocol": protocol,
-	}
-	if hostname != "" {
-		listener["hostname"] = hostname
-	}
 	return map[string]any{
 		"gatewayClassName": gatewayClass,
-		"listeners":        []any{listener},
+		"listeners":        listeners,
 	}, nil, nil
+}
+
+func gatewayFieldArray(c *gin.Context, key, fallback string) []string {
+	values := c.PostFormArray(key)
+	if len(values) == 0 && fallback != "" {
+		if single := strings.TrimSpace(c.PostForm(fallback)); single != "" {
+			return []string{single}
+		}
+	}
+	out := make([]string, 0, len(values))
+	for _, v := range values {
+		out = append(out, strings.TrimSpace(v))
+	}
+	return out
+}
+
+func at(values []string, i int) string {
+	if i < 0 || i >= len(values) {
+		return ""
+	}
+	return strings.TrimSpace(values[i])
+}
+
+func maxLen(values ...[]string) int {
+	max := 0
+	for _, arr := range values {
+		if len(arr) > max {
+			max = len(arr)
+		}
+	}
+	return max
 }
 
 func buildHTTPRouteSpec(c *gin.Context) (map[string]any, validationErrors, error) {
@@ -1717,6 +1795,9 @@ func extractFieldValues(kind string, obj map[string]any) map[string]string {
 		out["gateway_class"] = asString(spec["gatewayClassName"])
 		out["gateway_class_custom"] = asString(spec["gatewayClassName"])
 		listeners := asSlice(spec["listeners"])
+		if len(listeners) > 0 {
+			out["listeners_json"] = prettyObject(listeners)
+		}
 		if len(listeners) > 0 {
 			l0, _ := listeners[0].(map[string]any)
 			out["listener_name"] = asString(l0["name"])

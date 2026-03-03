@@ -248,6 +248,46 @@ textarea {
   margin: 0 0 .35rem;
   font-family: "Space Grotesk", sans-serif;
 }
+.listener-list {
+  display: grid;
+  gap: .7rem;
+}
+.listener-card {
+  border: 1px solid color-mix(in oklab, var(--line), white 22%);
+  border-radius: 12px;
+  padding: .75rem;
+  background: color-mix(in oklab, #fff, #fff6ea 30%);
+}
+.listener-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+  margin-bottom: .45rem;
+}
+.listener-head h5 {
+  margin: 0;
+  font-family: "Space Grotesk", sans-serif;
+}
+.listener-head h6 {
+  margin: 0;
+}
+.listener-remove-btn {
+  padding: .35rem .65rem;
+  font-size: .82rem;
+}
+.listener-add-btn {
+  margin-top: .4rem;
+}
+.listener-tls {
+  border-top: 1px dashed var(--line);
+  margin-top: .6rem;
+  padding-top: .6rem;
+}
+.listener-tls h6 {
+  margin: 0 0 .4rem;
+  font-family: "Space Grotesk", sans-serif;
+}
 .audit-filter {
   border: 1px dashed var(--line);
   border-radius: 12px;
