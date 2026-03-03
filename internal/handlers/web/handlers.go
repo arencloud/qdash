@@ -136,7 +136,6 @@ func (h *Handler) RegisterProtected(rg *gin.RouterGroup) {
 	rg.GET("/organizations/:slug/resources", h.orgResources)
 	rg.GET("/organizations/:slug/resources/namespaces/panel", h.resourceNamespacesPanel)
 	rg.GET("/organizations/:slug/resources/namespaces/workspace", h.resourceNamespacesWorkspace)
-	rg.GET("/organizations/:slug/resources/namespaces/active", h.resourceActiveNamespace)
 	rg.GET("/organizations/:slug/resources/namespaces/labels", h.resourceNamespaceLabelOptions)
 	rg.POST("/organizations/:slug/resources/namespaces/create", h.resourceNamespaceCreate)
 	rg.POST("/organizations/:slug/resources/namespaces/adopt", h.resourceNamespaceAdopt)
@@ -760,10 +759,22 @@ func (h *Handler) orgAudit(c *gin.Context) {
 
 func (h *Handler) orgResources(c *gin.Context) {
 	user, _ := middleware.UserFromContext(c)
-	_, err := h.rbac.Authorize(user.ID, c.Param("slug"), "organizations.read")
+	org, err := h.rbac.Authorize(user.ID, c.Param("slug"), "organizations.read")
 	if err != nil {
 		c.HTML(http.StatusForbidden, "flash", gin.H{"Message": "forbidden"})
 		return
+	}
+	namespaces, defaultNS, err := h.loadNamespaceOptions(c, org.ID)
+	if err != nil {
+		c.HTML(http.StatusInternalServerError, "flash", gin.H{"Message": err.Error()})
+		return
+	}
+	activeNamespace := strings.TrimSpace(c.Query("namespace"))
+	if activeNamespace == "" {
+		activeNamespace = defaultNS
+	}
+	if activeNamespace != "" && !namespaceExistsInOptions(namespaces, activeNamespace) {
+		activeNamespace = defaultNS
 	}
 	activeKind := normalizeResourceWorkspaceKind(c.Query("kind"))
 	menuKinds := append([]resourceKind{
@@ -781,6 +792,7 @@ func (h *Handler) orgResources(c *gin.Context) {
 		"MenuKinds":       menuKinds,
 		"ActiveKind":      activeKind,
 		"ActiveKindTitle": activeKindTitle,
+		"ActiveNamespace": activeNamespace,
 	}
 
 	if activeKind == "namespaces" {
@@ -818,103 +830,21 @@ func (h *Handler) orgResources(c *gin.Context) {
 }
 
 func (h *Handler) resourceNamespacesPanel(c *gin.Context) {
-	user, _ := middleware.UserFromContext(c)
-	org, err := h.rbac.Authorize(user.ID, c.Param("slug"), "gateway.read")
+	workspace, status, err := h.buildNamespaceWorkspaceData(c)
 	if err != nil {
-		c.HTML(http.StatusForbidden, "flash", gin.H{"Message": "forbidden"})
+		c.HTML(status, "flash", gin.H{"Message": err.Error()})
 		return
 	}
-	namespaces, defaultNS, err := h.loadNamespaceOptions(c, org.ID)
-	if err != nil {
-		c.HTML(http.StatusInternalServerError, "flash", gin.H{"Message": err.Error()})
-		return
-	}
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 20*time.Second)
-	defer cancel()
-	instanceConfigs, discoverErr := h.kubeSvc.DiscoverIstioInstanceConfigs(ctx)
-	if discoverErr != nil {
-		c.HTML(http.StatusBadGateway, "flash", gin.H{"Message": discoverErr.Error()})
-		return
-	}
-	discoveryLabels := make([]string, 0, len(instanceConfigs))
-	for _, cfg := range instanceConfigs {
-		discoveryLabels = append(discoveryLabels, cfg.DiscoveryLabel)
-	}
-	defaultDiscovery := firstOrDefault(discoveryLabels, "default")
-
-	settings := map[string]any{}
-	if len(org.Settings) > 0 {
-		_ = json.Unmarshal(org.Settings, &settings)
-	}
-	if v, ok := settings["defaultIstioDiscoveryLabel"].(string); ok && strings.TrimSpace(v) != "" {
-		defaultDiscovery = strings.TrimSpace(v)
-	}
-	selectedConfig := findIstioInstanceConfig(instanceConfigs, defaultDiscovery)
-	if selectedConfig.DiscoveryLabel == "" && len(instanceConfigs) > 0 {
-		selectedConfig = instanceConfigs[0]
-	}
-	defaultRevision := firstOrDefault(selectedConfig.RevisionTags, "default")
-	if v, ok := settings["defaultIstioRevisionTag"].(string); ok && strings.TrimSpace(v) != "" {
-		candidate := strings.TrimSpace(v)
-		if containsString(selectedConfig.RevisionTags, candidate) {
-			defaultRevision = candidate
-		}
-	}
-	labelOptions := append([]string{}, selectedConfig.AdditionalLabels...)
-	c.HTML(http.StatusOK, "namespace_panel", gin.H{
-		"Slug":             c.Param("slug"),
-		"Namespaces":       namespaces,
-		"DefaultNS":        defaultNS,
-		"DiscoveryLabels":  discoveryLabels,
-		"RevisionTags":     selectedConfig.RevisionTags,
-		"DefaultDiscovery": defaultDiscovery,
-		"DefaultRevision":  defaultRevision,
-		"LabelOptions":     labelOptions,
-	})
+	c.HTML(http.StatusOK, "namespace_panel", workspace)
 }
 
 func (h *Handler) resourceNamespacesWorkspace(c *gin.Context) {
-	user, _ := middleware.UserFromContext(c)
-	org, err := h.rbac.Authorize(user.ID, c.Param("slug"), "gateway.read")
+	workspace, status, err := h.buildNamespaceWorkspaceData(c)
 	if err != nil {
-		c.HTML(http.StatusForbidden, "flash", gin.H{"Message": "forbidden"})
+		c.HTML(status, "flash", gin.H{"Message": err.Error()})
 		return
 	}
-	namespaces, defaultNS, err := h.loadNamespaceOptions(c, org.ID)
-	if err != nil {
-		c.HTML(http.StatusInternalServerError, "flash", gin.H{"Message": err.Error()})
-		return
-	}
-	selectedNS := strings.TrimSpace(c.Query("namespace"))
-	if selectedNS == "" {
-		selectedNS = defaultNS
-	}
-	c.HTML(http.StatusOK, "namespace_workspace", gin.H{
-		"Namespaces": namespaces,
-		"SelectedNS": selectedNS,
-	})
-}
-
-func (h *Handler) resourceActiveNamespace(c *gin.Context) {
-	user, _ := middleware.UserFromContext(c)
-	org, err := h.rbac.Authorize(user.ID, c.Param("slug"), "gateway.read")
-	if err != nil {
-		c.HTML(http.StatusForbidden, "flash", gin.H{"Message": "forbidden"})
-		return
-	}
-	_, defaultNS, err := h.loadNamespaceOptions(c, org.ID)
-	if err != nil {
-		c.HTML(http.StatusInternalServerError, "flash", gin.H{"Message": err.Error()})
-		return
-	}
-	selectedNS := strings.TrimSpace(c.Query("namespace"))
-	if selectedNS == "" {
-		selectedNS = defaultNS
-	}
-	if selectedNS == "" {
-		selectedNS = "none selected"
-	}
-	c.HTML(http.StatusOK, "active_namespace_badge", gin.H{"Namespace": selectedNS})
+	c.HTML(http.StatusOK, "namespace_workspace", workspace)
 }
 
 func (h *Handler) resourceNamespaceLabelOptions(c *gin.Context) {
@@ -952,6 +882,69 @@ func (h *Handler) resourceNamespaceLabelOptions(c *gin.Context) {
 		"DefaultRevision": revision,
 		"LabelOptions":    cfg.AdditionalLabels,
 	})
+}
+
+func (h *Handler) buildNamespaceWorkspaceData(c *gin.Context) (gin.H, int, error) {
+	user, _ := middleware.UserFromContext(c)
+	org, err := h.rbac.Authorize(user.ID, c.Param("slug"), "gateway.read")
+	if err != nil {
+		return nil, http.StatusForbidden, errors.New("forbidden")
+	}
+	namespaces, defaultNS, err := h.loadNamespaceOptions(c, org.ID)
+	if err != nil {
+		return nil, http.StatusInternalServerError, err
+	}
+	selectedNS := strings.TrimSpace(c.Query("namespace"))
+	if selectedNS == "" {
+		selectedNS = strings.TrimSpace(c.Query("active_namespace"))
+	}
+	if selectedNS == "" {
+		selectedNS = defaultNS
+	}
+	if selectedNS != "" && !namespaceExistsInOptions(namespaces, selectedNS) {
+		selectedNS = defaultNS
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 20*time.Second)
+	defer cancel()
+	instanceConfigs, discoverErr := h.kubeSvc.DiscoverIstioInstanceConfigs(ctx)
+	if discoverErr != nil {
+		return nil, http.StatusBadGateway, discoverErr
+	}
+	discoveryLabels := make([]string, 0, len(instanceConfigs))
+	for _, cfg := range instanceConfigs {
+		discoveryLabels = append(discoveryLabels, cfg.DiscoveryLabel)
+	}
+	defaultDiscovery := firstOrDefault(discoveryLabels, "default")
+	settings := map[string]any{}
+	if len(org.Settings) > 0 {
+		_ = json.Unmarshal(org.Settings, &settings)
+	}
+	if v, ok := settings["defaultIstioDiscoveryLabel"].(string); ok && strings.TrimSpace(v) != "" {
+		defaultDiscovery = strings.TrimSpace(v)
+	}
+	selectedConfig := findIstioInstanceConfig(instanceConfigs, defaultDiscovery)
+	if selectedConfig.DiscoveryLabel == "" && len(instanceConfigs) > 0 {
+		selectedConfig = instanceConfigs[0]
+	}
+	defaultRevision := firstOrDefault(selectedConfig.RevisionTags, "default")
+	if v, ok := settings["defaultIstioRevisionTag"].(string); ok && strings.TrimSpace(v) != "" {
+		candidate := strings.TrimSpace(v)
+		if containsString(selectedConfig.RevisionTags, candidate) {
+			defaultRevision = candidate
+		}
+	}
+
+	return gin.H{
+		"Slug":             c.Param("slug"),
+		"Namespaces":       namespaces,
+		"SelectedNS":       selectedNS,
+		"DiscoveryLabels":  discoveryLabels,
+		"RevisionTags":     selectedConfig.RevisionTags,
+		"DefaultDiscovery": defaultDiscovery,
+		"DefaultRevision":  defaultRevision,
+		"LabelOptions":     append([]string{}, selectedConfig.AdditionalLabels...),
+	}, http.StatusOK, nil
 }
 
 func (h *Handler) resourceNamespaceCreate(c *gin.Context) {
@@ -1844,4 +1837,17 @@ func (h *Handler) loadNamespaceOptions(c *gin.Context, orgID uuid.UUID) ([]names
 		defaultNS = namespaces[0].Name
 	}
 	return namespaces, defaultNS, nil
+}
+
+func namespaceExistsInOptions(options []namespaceOption, namespace string) bool {
+	namespace = strings.TrimSpace(namespace)
+	if namespace == "" {
+		return false
+	}
+	for _, option := range options {
+		if option.Name == namespace && option.Exists {
+			return true
+		}
+	}
+	return false
 }

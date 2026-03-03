@@ -58,33 +58,60 @@
 {{end}}
 
 {{define "namespace_workspace"}}
-<div class="card-stack">
-  <section class="card">
-    <h4>Owned Namespaces</h4>
-    <table class="audit-table">
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Status</th>
-          <th>Selected</th>
-        </tr>
-      </thead>
-      <tbody>
-      {{range .Namespaces}}
-        <tr>
-          <td>{{.Name}}</td>
-          <td>{{if .Exists}}ready{{else}}missing in cluster{{end}}</td>
-          <td>{{if eq $.SelectedNS .Name}}active{{else}}-{{end}}</td>
-        </tr>
-      {{else}}
-        <tr><td colspan="3">No owned namespaces yet.</td></tr>
-      {{end}}
-      </tbody>
-    </table>
-  </section>
-</div>
-{{end}}
+<section id="namespace-feedback"></section>
 
-{{define "active_namespace_badge"}}
-{{.Namespace}}
+<div class="grid two namespace-actions-grid">
+  <form hx-post="/organizations/{{.Slug}}/resources/namespaces/create" hx-target="#namespace-feedback" hx-swap="innerHTML">
+    <label>Create Namespace</label>
+    <input name="name" placeholder="team-a" required>
+    <label>Istio Discovery Label (key=value)</label>
+    <select name="discovery_label" id="istio-discovery" required hx-get="/organizations/{{.Slug}}/resources/namespaces/labels" hx-trigger="load,change" hx-target="#ns-revision-and-labels" hx-include="#istio-discovery,#istio-rev">
+      {{range .DiscoveryLabels}}
+      <option value="{{.}}" {{if eq . $.DefaultDiscovery}}selected{{end}}>{{.}}</option>
+      {{end}}
+    </select>
+    <div id="ns-revision-and-labels">
+      {{template "namespace_revision_and_labels" .}}
+    </div>
+    <button type="submit">Create + Claim</button>
+  </form>
+
+  <form hx-post="/organizations/{{.Slug}}/resources/namespaces/adopt" hx-target="#namespace-feedback" hx-swap="innerHTML">
+    <label>Adopt Existing Namespace (Admin)</label>
+    <input name="name" placeholder="existing-ns" required>
+    <button type="submit">Adopt</button>
+  </form>
+</div>
+
+<section class="card">
+  <h4>Owned Namespaces</h4>
+  <table class="audit-table">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Status</th>
+        <th>Use Namespace</th>
+      </tr>
+    </thead>
+    <tbody>
+    {{range .Namespaces}}
+      <tr>
+        <td>{{.Name}}</td>
+        <td>{{if .Exists}}ready{{else}}missing in cluster{{end}}</td>
+        <td>
+          {{if .Exists}}
+            {{if eq $.SelectedNS .Name}}
+            <span class="badge">active</span>
+            {{else}}
+            <a class="btn ghost" href="/organizations/{{$.Slug}}/resources?kind=namespaces&namespace={{.Name}}">Use</a>
+            {{end}}
+          {{else}}-{{end}}
+        </td>
+      </tr>
+    {{else}}
+      <tr><td colspan="3">No owned namespaces yet.</td></tr>
+    {{end}}
+    </tbody>
+  </table>
+</section>
 {{end}}

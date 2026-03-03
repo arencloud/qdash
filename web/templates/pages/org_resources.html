@@ -28,12 +28,12 @@
         <p class="kpi-value">{{.ActiveKindTitle}}</p>
       </div>
       <div class="kpi-card">
-        <p class="kpi-label">Active Namespace</p>
-        <p class="kpi-value" id="active-namespace-pill" hx-get="/organizations/{{.Slug}}/resources/namespaces/active" hx-trigger="load,namespaceChanged from:body,change from:#ns-select" hx-include="#ns-select" hx-target="this" hx-swap="innerHTML">loading...</p>
-      </div>
-      <div class="kpi-card">
         <p class="kpi-label">Mode</p>
         <p class="kpi-value">Single Focus</p>
+      </div>
+      <div class="kpi-card">
+        <p class="kpi-label">Namespace Context</p>
+        <p class="kpi-value">{{if .ActiveNamespace}}{{.ActiveNamespace}}{{else}}Select In Namespaces{{end}}</p>
       </div>
     </div>
   </section>
@@ -46,9 +46,7 @@
     <a class="tab" href="/organizations/{{.Slug}}/audit">Audit</a>
   </section>
 
-  <section id="namespace-panel" hx-get="/organizations/{{.Slug}}/resources/namespaces/panel" hx-trigger="load,namespaceChanged from:body" hx-target="this" hx-swap="innerHTML">
-    Loading namespaces...
-  </section>
+  <input type="hidden" id="ns-select" name="namespace" value="{{.ActiveNamespace}}">
 
   <section class="resource-hub">
     <aside class="card resource-sidebar">
@@ -56,32 +54,32 @@
       <p class="muted">Open one workspace at a time for faster operations and less visual noise.</p>
       <div class="resource-menu-grid">
         {{range .MenuKinds}}
-        <a class="resource-menu-item {{if eq $.ActiveKind .Param}}active{{end}}" href="/organizations/{{$.Slug}}/resources?kind={{.Param}}">
+        <a class="resource-menu-item {{if eq $.ActiveKind .Param}}active{{end}}" href="/organizations/{{$.Slug}}/resources?kind={{.Param}}{{if $.ActiveNamespace}}&namespace={{$.ActiveNamespace}}{{end}}">
           <span class="menu-title">{{.Title}}</span>
         </a>
         {{end}}
       </div>
       <div class="workspace-note">
         <h4>Quick Flow</h4>
-        <p class="muted">1) Select namespace above. 2) Choose resource menu. 3) Apply changes and refresh list.</p>
+        <p class="muted">1) Open Namespaces menu. 2) Pick namespace from Owned list. 3) Work in Gateway/Route/Policy menus.</p>
       </div>
     </aside>
 
     <section class="card resource-main">
       <div class="workspace-heading">
         <h3>{{.ActiveKindTitle}} Workspace</h3>
-        <span class="badge">Focused Mode</span>
+        <span class="badge">{{if .ActiveNamespace}}NS: {{.ActiveNamespace}}{{else}}No Namespace Selected{{end}}</span>
       </div>
 
       {{if .IsNamespaceWorkspace}}
-      <p class="muted">Create, adopt, and select namespace context using the panel above. Once selected, switch to any resource menu.</p>
-      <section id="namespace-workspace-list" hx-get="/organizations/{{.Slug}}/resources/namespaces/workspace" hx-trigger="load,namespaceChanged from:body,change from:#ns-select" hx-include="#ns-select" hx-target="this" hx-swap="innerHTML">
+      <p class="muted">Namespace Context is managed only here. Select one namespace from the owned list to use it in all other workspaces.</p>
+      <section id="namespace-workspace-list" hx-get="/organizations/{{.Slug}}/resources/namespaces/workspace?namespace={{.ActiveNamespace}}" hx-trigger="load,namespaceChanged from:body" hx-target="this" hx-swap="innerHTML">
         Loading namespace workspace...
       </section>
       {{else if .WorkspaceError}}
       <p>{{.WorkspaceError}}</p>
       {{else}}
-      <p class="muted">Use a single focused form and list for better clarity and faster operations.</p>
+      <p class="muted">Use a single focused form and list for better clarity and faster operations. Namespace context is shown above.</p>
       {{if .GatewayClassError}}
       <div class="flash">Gateway classes could not be loaded from cluster: {{.GatewayClassError}}</div>
       {{end}}
@@ -97,7 +95,7 @@
         <button class="btn" hx-get="/organizations/{{.Slug}}/resources/{{.WorkspaceKind.Param}}/list" hx-include="#ns-select" hx-target="#list-{{.WorkspaceKind.Param}}" hx-swap="innerHTML">Refresh List</button>
       </div>
 
-      <div id="list-{{.WorkspaceKind.Param}}" hx-get="/organizations/{{.Slug}}/resources/{{.WorkspaceKind.Param}}/list" hx-trigger="load,resourceChanged from:body,change from:#ns-select" hx-include="#ns-select" hx-target="this" hx-swap="innerHTML">
+      <div id="list-{{.WorkspaceKind.Param}}" hx-get="/organizations/{{.Slug}}/resources/{{.WorkspaceKind.Param}}/list" hx-trigger="load,resourceChanged from:body,namespaceChanged from:body,change from:#ns-select" hx-include="#ns-select" hx-target="this" hx-swap="innerHTML">
         Loading {{.WorkspaceKind.Title}}...
       </div>
       {{end}}
