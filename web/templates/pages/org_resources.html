@@ -28,12 +28,12 @@
         <p class="kpi-value">{{.ActiveKindTitle}}</p>
       </div>
       <div class="kpi-card">
-        <p class="kpi-label">Mode</p>
-        <p class="kpi-value">Single Focus</p>
+        <p class="kpi-label">Active Namespace</p>
+        <p class="kpi-value" id="active-namespace-pill" hx-get="/organizations/{{.Slug}}/resources/namespaces/active" hx-trigger="load,namespaceChanged from:body,change from:#ns-select" hx-include="#ns-select" hx-target="this" hx-swap="innerHTML">loading...</p>
       </div>
       <div class="kpi-card">
-        <p class="kpi-label">Flow</p>
-        <p class="kpi-value">Namespace First</p>
+        <p class="kpi-label">Mode</p>
+        <p class="kpi-value">Single Focus</p>
       </div>
     </div>
   </section>
@@ -75,6 +75,9 @@
 
       {{if .IsNamespaceWorkspace}}
       <p class="muted">Create, adopt, and select namespace context using the panel above. Once selected, switch to any resource menu.</p>
+      <section id="namespace-workspace-list" hx-get="/organizations/{{.Slug}}/resources/namespaces/workspace" hx-trigger="load,namespaceChanged from:body,change from:#ns-select" hx-include="#ns-select" hx-target="this" hx-swap="innerHTML">
+        Loading namespace workspace...
+      </section>
       {{else if .WorkspaceError}}
       <p>{{.WorkspaceError}}</p>
       {{else}}

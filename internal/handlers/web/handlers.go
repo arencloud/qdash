@@ -135,6 +135,8 @@ func (h *Handler) RegisterProtected(rg *gin.RouterGroup) {
 	rg.GET("/organizations/:slug/audit", h.orgAudit)
 	rg.GET("/organizations/:slug/resources", h.orgResources)
 	rg.GET("/organizations/:slug/resources/namespaces/panel", h.resourceNamespacesPanel)
+	rg.GET("/organizations/:slug/resources/namespaces/workspace", h.resourceNamespacesWorkspace)
+	rg.GET("/organizations/:slug/resources/namespaces/active", h.resourceActiveNamespace)
 	rg.GET("/organizations/:slug/resources/namespaces/labels", h.resourceNamespaceLabelOptions)
 	rg.POST("/organizations/:slug/resources/namespaces/create", h.resourceNamespaceCreate)
 	rg.POST("/organizations/:slug/resources/namespaces/adopt", h.resourceNamespaceAdopt)
@@ -869,6 +871,50 @@ func (h *Handler) resourceNamespacesPanel(c *gin.Context) {
 		"DefaultRevision":  defaultRevision,
 		"LabelOptions":     labelOptions,
 	})
+}
+
+func (h *Handler) resourceNamespacesWorkspace(c *gin.Context) {
+	user, _ := middleware.UserFromContext(c)
+	org, err := h.rbac.Authorize(user.ID, c.Param("slug"), "gateway.read")
+	if err != nil {
+		c.HTML(http.StatusForbidden, "flash", gin.H{"Message": "forbidden"})
+		return
+	}
+	namespaces, defaultNS, err := h.loadNamespaceOptions(c, org.ID)
+	if err != nil {
+		c.HTML(http.StatusInternalServerError, "flash", gin.H{"Message": err.Error()})
+		return
+	}
+	selectedNS := strings.TrimSpace(c.Query("namespace"))
+	if selectedNS == "" {
+		selectedNS = defaultNS
+	}
+	c.HTML(http.StatusOK, "namespace_workspace", gin.H{
+		"Namespaces": namespaces,
+		"SelectedNS": selectedNS,
+	})
+}
+
+func (h *Handler) resourceActiveNamespace(c *gin.Context) {
+	user, _ := middleware.UserFromContext(c)
+	org, err := h.rbac.Authorize(user.ID, c.Param("slug"), "gateway.read")
+	if err != nil {
+		c.HTML(http.StatusForbidden, "flash", gin.H{"Message": "forbidden"})
+		return
+	}
+	_, defaultNS, err := h.loadNamespaceOptions(c, org.ID)
+	if err != nil {
+		c.HTML(http.StatusInternalServerError, "flash", gin.H{"Message": err.Error()})
+		return
+	}
+	selectedNS := strings.TrimSpace(c.Query("namespace"))
+	if selectedNS == "" {
+		selectedNS = defaultNS
+	}
+	if selectedNS == "" {
+		selectedNS = "none selected"
+	}
+	c.HTML(http.StatusOK, "active_namespace_badge", gin.H{"Namespace": selectedNS})
 }
 
 func (h *Handler) resourceNamespaceLabelOptions(c *gin.Context) {

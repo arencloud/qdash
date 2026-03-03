@@ -56,3 +56,35 @@
   {{end}}
 </div>
 {{end}}
+
+{{define "namespace_workspace"}}
+<div class="card-stack">
+  <section class="card">
+    <h4>Owned Namespaces</h4>
+    <table class="audit-table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Status</th>
+          <th>Selected</th>
+        </tr>
+      </thead>
+      <tbody>
+      {{range .Namespaces}}
+        <tr>
+          <td>{{.Name}}</td>
+          <td>{{if .Exists}}ready{{else}}missing in cluster{{end}}</td>
+          <td>{{if eq $.SelectedNS .Name}}active{{else}}-{{end}}</td>
+        </tr>
+      {{else}}
+        <tr><td colspan="3">No owned namespaces yet.</td></tr>
+      {{end}}
+      </tbody>
+    </table>
+  </section>
+</div>
+{{end}}
+
+{{define "active_namespace_badge"}}
+{{.Namespace}}
+{{end}}
