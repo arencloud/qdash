@@ -51,6 +51,61 @@ body {
 .grid.three { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
 .grid.four { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
 .card-stack { display: grid; gap: .8rem; }
+.resource-menu-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: .65rem;
+}
+.resource-menu-item {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: .7rem .8rem;
+  background: #fff;
+  color: #283245;
+  transition: transform .12s ease, border-color .12s ease;
+}
+.resource-menu-item:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in oklab, var(--brand), white 45%);
+}
+.resource-menu-item.active {
+  border-color: color-mix(in oklab, var(--brand), white 30%);
+  background: color-mix(in oklab, #fff, #fff5ea 55%);
+}
+.menu-title {
+  display: block;
+  font-family: "Space Grotesk", sans-serif;
+  font-weight: 700;
+}
+.resource-hub {
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) 1fr;
+  gap: 1rem;
+}
+.resource-sidebar {
+  position: sticky;
+  top: 1rem;
+  align-self: start;
+}
+.workspace-note {
+  margin-top: .9rem;
+  border-top: 1px dashed var(--line);
+  padding-top: .65rem;
+}
+.workspace-note h4 {
+  margin: 0 0 .35rem;
+  font-family: "Space Grotesk", sans-serif;
+}
+.workspace-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .7rem;
+  margin-bottom: .35rem;
+}
+.workspace-heading h3 {
+  margin-bottom: 0;
+}
 .card {
   background: color-mix(in oklab, var(--surface), white 40%);
   border: 1px solid var(--line);
@@ -309,6 +364,15 @@ a { color: #054a77; }
   .tab {
     font-size: .8rem;
     padding: .28rem .5rem;
+  }
+  .resource-hub {
+    grid-template-columns: 1fr;
+  }
+  .resource-sidebar {
+    position: static;
+  }
+  .resource-menu-grid {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   }
 }
 

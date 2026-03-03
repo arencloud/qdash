@@ -18,10 +18,26 @@
       <a class="btn ghost" href="/organizations/{{.Slug}}/settings">Org Settings</a>
     </div>
   </section>
+
   <section class="hero compact">
     <h1>Organization Resource Center</h1>
     <p>Organization: {{.Slug}}</p>
+    <div class="kpi-strip">
+      <div class="kpi-card">
+        <p class="kpi-label">Active Workspace</p>
+        <p class="kpi-value">{{.ActiveKindTitle}}</p>
+      </div>
+      <div class="kpi-card">
+        <p class="kpi-label">Mode</p>
+        <p class="kpi-value">Single Focus</p>
+      </div>
+      <div class="kpi-card">
+        <p class="kpi-label">Flow</p>
+        <p class="kpi-value">Namespace First</p>
+      </div>
+    </div>
   </section>
+
   <section class="tabs">
     <a class="tab" href="/organizations/{{.Slug}}/settings">Settings</a>
     <a class="tab" href="/organizations/{{.Slug}}/rbac">RBAC</a>
@@ -33,33 +49,57 @@
   <section id="namespace-panel" hx-get="/organizations/{{.Slug}}/resources/namespaces/panel" hx-trigger="load,namespaceChanged from:body" hx-target="this" hx-swap="innerHTML">
     Loading namespaces...
   </section>
-  {{if .GatewayClassError}}
-  <section class="card"><p>Gateway classes could not be loaded from cluster: {{.GatewayClassError}}</p></section>
-  {{end}}
-  <section class="card">
-    <h3>How To Use This Page</h3>
-    <p class="muted">1) Create or adopt a namespace. 2) Choose the namespace context. 3) Apply resources and refresh list. You can switch to advanced JSON for full control.</p>
+
+  <section class="resource-hub">
+    <aside class="card resource-sidebar">
+      <h3>Resource Menus</h3>
+      <p class="muted">Open one workspace at a time for faster operations and less visual noise.</p>
+      <div class="resource-menu-grid">
+        {{range .MenuKinds}}
+        <a class="resource-menu-item {{if eq $.ActiveKind .Param}}active{{end}}" href="/organizations/{{$.Slug}}/resources?kind={{.Param}}">
+          <span class="menu-title">{{.Title}}</span>
+        </a>
+        {{end}}
+      </div>
+      <div class="workspace-note">
+        <h4>Quick Flow</h4>
+        <p class="muted">1) Select namespace above. 2) Choose resource menu. 3) Apply changes and refresh list.</p>
+      </div>
+    </aside>
+
+    <section class="card resource-main">
+      <div class="workspace-heading">
+        <h3>{{.ActiveKindTitle}} Workspace</h3>
+        <span class="badge">Focused Mode</span>
+      </div>
+
+      {{if .IsNamespaceWorkspace}}
+      <p class="muted">Create, adopt, and select namespace context using the panel above. Once selected, switch to any resource menu.</p>
+      {{else if .WorkspaceError}}
+      <p>{{.WorkspaceError}}</p>
+      {{else}}
+      <p class="muted">Use a single focused form and list for better clarity and faster operations.</p>
+      {{if .GatewayClassError}}
+      <div class="flash">Gateway classes could not be loaded from cluster: {{.GatewayClassError}}</div>
+      {{end}}
+
+      <section id="resource-feedback-{{.WorkspaceKind.Param}}"></section>
+      <form class="resource-form" hx-post="/organizations/{{.Slug}}/resources/{{.WorkspaceKind.Param}}/apply" hx-target="#resource-feedback-{{.WorkspaceKind.Param}}" hx-swap="innerHTML" hx-include="#ns-select,this">
+        <input id="name-{{.WorkspaceKind.Param}}" name="name" placeholder="{{.WorkspaceKind.Title}} name" required>
+        {{template "resource_form" .WorkspaceKind}}
+        <button type="submit">Apply {{.WorkspaceKind.Title}}</button>
+      </form>
+
+      <div class="actions">
+        <button class="btn" hx-get="/organizations/{{.Slug}}/resources/{{.WorkspaceKind.Param}}/list" hx-include="#ns-select" hx-target="#list-{{.WorkspaceKind.Param}}" hx-swap="innerHTML">Refresh List</button>
+      </div>
+
+      <div id="list-{{.WorkspaceKind.Param}}" hx-get="/organizations/{{.Slug}}/resources/{{.WorkspaceKind.Param}}/list" hx-trigger="load,resourceChanged from:body,change from:#ns-select" hx-include="#ns-select" hx-target="this" hx-swap="innerHTML">
+        Loading {{.WorkspaceKind.Title}}...
+      </div>
+      {{end}}
+    </section>
   </section>
-
-  {{range .Kinds}}
-  <section class="card">
-    <h3>{{.Title}}</h3>
-    <section id="resource-feedback-{{.Param}}"></section>
-    <form class="resource-form" hx-post="/organizations/{{$.Slug}}/resources/{{.Param}}/apply" hx-target="#resource-feedback-{{.Param}}" hx-swap="innerHTML" hx-include="#ns-select,this">
-      <input id="name-{{.Param}}" name="name" placeholder="{{.Title}} name" required>
-      {{template "resource_form" .}}
-      <button type="submit">Apply {{.Title}}</button>
-    </form>
-
-    <div class="actions">
-      <button class="btn" hx-get="/organizations/{{$.Slug}}/resources/{{.Param}}/list" hx-include="#ns-select" hx-target="#list-{{.Param}}" hx-swap="innerHTML">Refresh List</button>
-    </div>
-
-    <div id="list-{{.Param}}" hx-get="/organizations/{{$.Slug}}/resources/{{.Param}}/list" hx-trigger="load,resourceChanged from:body,change from:#ns-select" hx-include="#ns-select" hx-target="this" hx-swap="innerHTML">
-      Loading {{.Title}}...
-    </div>
-  </section>
-  {{end}}
 </main>
 </body>
 </html>

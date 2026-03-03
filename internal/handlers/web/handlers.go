@@ -763,29 +763,56 @@ func (h *Handler) orgResources(c *gin.Context) {
 		c.HTML(http.StatusForbidden, "flash", gin.H{"Message": "forbidden"})
 		return
 	}
-	classes := []string{}
-	classErr := ""
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 20*time.Second)
-	defer cancel()
-	classes, err = h.kubeSvc.ListGatewayClasses(ctx)
-	if err != nil {
-		classErr = err.Error()
-		classes = []string{}
-	}
-	sort.Strings(classes)
-	kinds := allResourceKinds()
-	for i := range kinds {
-		if kinds[i].Param == "gateways" {
-			kinds[i].GatewayClasses = classes
+	activeKind := normalizeResourceWorkspaceKind(c.Query("kind"))
+	menuKinds := append([]resourceKind{
+		{Param: "namespaces", Title: "Namespaces"},
+	}, allResourceKinds()...)
+	activeKindTitle := "Namespaces"
+	for _, k := range menuKinds {
+		if k.Param == activeKind {
+			activeKindTitle = k.Title
 			break
 		}
 	}
-	c.HTML(http.StatusOK, "org_resources", gin.H{
-		"Slug":              c.Param("slug"),
-		"Kinds":             kinds,
-		"GatewayClasses":    classes,
-		"GatewayClassError": classErr,
-	})
+	view := gin.H{
+		"Slug":            c.Param("slug"),
+		"MenuKinds":       menuKinds,
+		"ActiveKind":      activeKind,
+		"ActiveKindTitle": activeKindTitle,
+	}
+
+	if activeKind == "namespaces" {
+		view["IsNamespaceWorkspace"] = true
+		c.HTML(http.StatusOK, "org_resources", view)
+		return
+	}
+
+	workspaceKind, ok := resourceKindByParam(activeKind)
+	if !ok {
+		view["WorkspaceError"] = "unknown resource kind"
+		c.HTML(http.StatusOK, "org_resources", view)
+		return
+	}
+	if _, err := h.rbac.Authorize(user.ID, c.Param("slug"), workspaceKind.ReadPermission); err != nil {
+		view["WorkspaceError"] = "forbidden for selected resource"
+		view["WorkspaceKind"] = workspaceKind
+		c.HTML(http.StatusOK, "org_resources", view)
+		return
+	}
+
+	if workspaceKind.Param == "gateways" {
+		ctx, cancel := context.WithTimeout(c.Request.Context(), 20*time.Second)
+		defer cancel()
+		classes, classErr := h.kubeSvc.ListGatewayClasses(ctx)
+		if classErr != nil {
+			view["GatewayClassError"] = classErr.Error()
+		} else {
+			sort.Strings(classes)
+			workspaceKind.GatewayClasses = classes
+		}
+	}
+	view["WorkspaceKind"] = workspaceKind
+	c.HTML(http.StatusOK, "org_resources", view)
 }
 
 func (h *Handler) resourceNamespacesPanel(c *gin.Context) {
@@ -1344,6 +1371,20 @@ func normalizeDiscoverySelection(v string) string {
 		return v
 	}
 	return "istio-discovery=" + v
+}
+
+func normalizeResourceWorkspaceKind(v string) string {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return "namespaces"
+	}
+	if v == "namespaces" {
+		return v
+	}
+	if _, ok := resourceKindByParam(v); ok {
+		return v
+	}
+	return "namespaces"
 }
 
 func splitLabelKV(v string) (string, string, error) {
